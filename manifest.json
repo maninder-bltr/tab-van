@@ -1,0 +1,87 @@
+{
+    "manifest_version": 3,
+    "name": "Tab-Van - Workspace Manager",
+    "version": "1.0.0",
+    "description": "Multi-account switcher, context-aware notes, and smart tab cleanup",
+    "permissions": [
+        "tabs",
+        "cookies",
+        "storage",
+        "sidePanel",
+        "scripting",
+        "declarativeNetRequest",
+        "tabGroups",
+        "identity",
+        "contextMenus"
+    ],
+    "oauth2": {
+        "client_id": "711148943030-pp3o753dse501dlkjoteh2tsn6i418o1.apps.googleusercontent.com",
+        "scopes": [
+            "openid",
+            "email",
+            "profile"
+        ]
+    },
+    "host_permissions": [
+        "<all_urls>"
+    ],
+    "background": {
+        "service_worker": "src/background/index.js",
+        "type": "module"
+    },
+    "action": {
+        "default_popup": "index.html",
+        "default_icon": {
+            "16": "public/icons.svg",
+            "48": "public/icons.svg",
+            "128": "public/icons.svg"
+        }
+    },
+    "side_panel": {
+        "default_path": "src/sidepanel.html"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "<all_urls>"
+            ],
+            "exclude_matches": [
+                "*://accounts.google.com/*",
+                "*://chrome.google.com/*",
+                "*://chromiumapp.org/*"
+            ],
+            "js": [
+                "src/content/index.jsx"
+            ],
+            "css": [
+                "src/content/content.css"
+            ],
+            "run_at": "document_idle"
+        }
+    ],
+    "icons": {
+        "16": "public/icons.svg",
+        "48": "public/icons.svg",
+        "128": "public/icons.svg"
+    },
+    "web_accessible_resources": [
+        {
+            "resources": [
+                "assets/*.png",
+                "assets/*.svg"
+            ],
+            "matches": [
+                "<all_urls>"
+            ]
+        }
+    ],
+    "commands": {
+        "toggle-note-indicator": {
+            "suggested_key": {
+                "default": "Ctrl+Shift+N",
+                "mac": "Command+Shift+N"
+            },
+            "description": "Show/hide note indicator"
+        }
+    }
+}

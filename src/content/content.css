@@ -1,0 +1,25 @@
+/* Content script styles - isolated from page styles */
+.tab-van-widget {
+    all: initial;
+    /* Reset inherited styles */
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+}
+
+.tab-van-widget * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+.tab-van-widget button {
+    font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Prevent widget from interfering with page layout */
+#tab-van-widget-root {
+    pointer-events: auto;
+    position: fixed;
+    z-index: 2147483647;
+    /* Max z-index */
+}
