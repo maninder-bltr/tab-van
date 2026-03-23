@@ -1,302 +1,282 @@
-// Content script for Tab-Van note indicator
-// ⚠️ Content scripts CANNOT use chrome.tabs API!
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
-import { X, StickyNote } from 'lucide-react';
+import { X, StickyNote, Save, Trash2, Clock, Minimize2, Move, History, Edit2, RotateCcw } from 'lucide-react';
 
-// Safe message sender with error handling
-const sendMessage = (message) => {
-    return new Promise((resolve, reject) => {
-        try {
-            if (typeof chrome?.runtime?.sendMessage !== 'function') {
-                throw new Error('Chrome runtime not available');
-            }
+function NoteDashboard() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [isVisible, setIsVisible] = useState(true);
+  
+  const [noteContent, setNoteContent] = useState('');
+  const [savedNotes, setSavedNotes] = useState([]);
+  const [currentUrl, setCurrentUrl] = useState('');
+  
+  // ✅ NEW: Track which note ID is currently being edited (null = new note)
+  const [editingId, setEditingId] = useState(null);
+  
+  const [position, setPosition] = useState({ x: window.innerWidth - 340, y: window.innerHeight - 450 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragOffset = useRef({ x: 0, y: 0 });
 
-            chrome.runtime.sendMessage(message, (response) => {
-                if (chrome.runtime.lastError) {
-                    reject(new Error(chrome.runtime.lastError.message));
-                } else {
-                    resolve(response);
-                }
-            });
-        } catch (error) {
-            console.warn('Message send failed:', error);
-            reject(error);
-        }
+  useEffect(() => {
+    setCurrentUrl(window.location.href);
+    loadNotes();
+    
+    chrome.storage.local.get(['widgetVisible']).then(res => {
+      if (res.widgetVisible === false) setIsVisible(false);
     });
-};
+  }, []);
 
-function NoteIndicator() {
-    const [visible, setVisible] = useState(true);
-    const [hasNote, setHasNote] = useState(false);
-    const [currentPage, setCurrentPage] = useState({ url: '', domain: '' });
-    const [loading, setLoading] = useState(true);
-
-    // Load visibility state from storage
-    useEffect(() => {
-        const loadState = async () => {
-            try {
-                if (typeof chrome?.storage?.local !== 'undefined') {
-                    const result = await chrome.storage.local.get(['noteIndicatorVisible']);
-                    setVisible(result.noteIndicatorVisible !== false);
-                }
-            } catch (err) {
-                console.warn('Could not load indicator state:', err);
-            }
-        };
-        loadState();
-    }, []);
-
-    // Get page info WITHOUT using chrome.tabs
-    useEffect(() => {
-        const init = async () => {
-            try {
-                // Use window.location instead of chrome.tabs.query
-                const url = window.location.href;
-                const domain = window.location.hostname;
-
-                setCurrentPage({ url, domain });
-
-                // Check for existing note using URL hash
-                if (typeof chrome?.storage?.local !== 'undefined') {
-                    const urlHash = btoa(url);
-                    const result = await chrome.storage.local.get([`note_${urlHash}`]);
-                    setHasNote(!!result[`note_${urlHash}`]);
-                }
-            } catch (err) {
-                console.warn('Could not get page info:', err);
-            } finally {
-                setLoading(false);
-            }
-        };
-        init();
-    }, []);
-
-    // Handle page visibility changes (for back/forward cache)
-    useEffect(() => {
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible' && !loading) {
-                // Re-check note status when page becomes active
-                const checkNote = async () => {
-                    try {
-                        const url = window.location.href;
-                        if (typeof chrome?.storage?.local !== 'undefined') {
-                            const urlHash = btoa(url);
-                            const result = await chrome.storage.local.get([`note_${urlHash}`]);
-                            setHasNote(!!result[`note_${urlHash}`]);
-                        }
-                    } catch (err) {
-                        // Silently fail during transitions
-                    }
-                };
-                checkNote();
-            }
-        };
-
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-    }, [loading]);
-
-    const handleClose = useCallback(async () => {
-        setVisible(false);
-        try {
-            if (typeof chrome?.storage?.local !== 'undefined') {
-                await chrome.storage.local.set({ noteIndicatorVisible: false });
-            }
-        } catch (err) {
-            console.warn('Could not save indicator state:', err);
-        }
-    }, []);
-
-    const handleOpenSidePanel = useCallback(async () => {
-        try {
-            // Request background script to open side panel
-            await sendMessage({ action: 'openSidePanel' });
-        } catch (err) {
-            console.warn('Could not open side panel via message:', err);
-            // Fallback: try direct API (only works in extension contexts)
-            try {
-                if (typeof chrome?.sidePanel?.open === 'function') {
-                    // This won't work from content script, but no harm trying
-                    await chrome.sidePanel.open({ windowId: -1 });
-                }
-            } catch (fallbackErr) {
-                console.error('Fallback also failed:', fallbackErr);
-            }
-        }
-    }, []);
-
-    const handleReopen = useCallback(async () => {
-        setVisible(true);
-        try {
-            if (typeof chrome?.storage?.local !== 'undefined') {
-                await chrome.storage.local.set({ noteIndicatorVisible: true });
-            }
-        } catch (err) {
-            console.warn('Could not save indicator state:', err);
-        }
-    }, []);
-
-    // Don't render if still loading or on OAuth pages
-    if (loading || currentPage.domain?.includes('accounts.google.com')) {
-        return null;
-    }
-
-    if (!visible) {
-        // Show minimal reopen button
-        return (
-            <button
-                onClick={handleReopen}
-                style={{
-                    position: 'fixed',
-                    bottom: '20px',
-                    right: '20px',
-                    backgroundColor: '#667eea',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '50%',
-                    width: '40px',
-                    height: '40px',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 2147483647,
-                    transition: 'transform 0.2s'
-                }}
-                title="Show note button"
-            >
-                <StickyNote size={18} />
-            </button>
-        );
-    }
-
-    return (
-        <div
-            style={{
-                position: 'fixed',
-                bottom: '20px',
-                right: '20px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                zIndex: 2147483647,
-                fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif'
-            }}
-        >
-            {/* Main note button */}
-            <button
-                onClick={handleOpenSidePanel}
-                style={{
-                    backgroundColor: hasNote ? '#10b981' : '#667eea',
-                    color: 'white',
-                    padding: '12px 16px',
-                    borderRadius: '50px',
-                    border: 'none',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    transition: 'all 0.2s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-                onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-                title={hasNote ? 'View note' : 'Add note for this page'}
-            >
-                <StickyNote size={16} />
-                {hasNote ? 'Note' : 'Add Note'}
-            </button>
-
-            {/* Close button */}
-            <button
-                onClick={handleClose}
-                style={{
-                    backgroundColor: 'rgba(255,255,255,0.9)',
-                    color: '#6b7280',
-                    border: 'none',
-                    borderRadius: '50%',
-                    width: '28px',
-                    height: '28px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                    transition: 'all 0.2s'
-                }}
-                onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#ef4444';
-                    e.currentTarget.style.color = 'white';
-                }}
-                onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.9)';
-                    e.currentTarget.style.color = '#6b7280';
-                }}
-                title="Hide note button"
-            >
-                <X size={14} />
-            </button>
-        </div>
+  const loadNotes = async () => {
+    const urlHash = btoa(window.location.href);
+    const result = await new Promise(resolve => 
+      chrome.storage.local.get([`notes_history_${urlHash}`], resolve)
     );
-}
-
-// Safe injection with domain filtering
-function injectWidget() {
-    // Skip injection on sensitive pages
-    const blockedDomains = [
-        'accounts.google.com',
-        'chrome://',
-        'chrome-extension://',
-        'chrome.google.com'
-    ];
-
-    const currentDomain = window.location.hostname;
-    if (blockedDomains.some(domain => currentDomain.includes(domain) || currentDomain.startsWith(domain))) {
-        console.log('🚫 Skipping widget injection on:', currentDomain);
-        return;
+    
+    const history = result[`notes_history_${urlHash}`] || [];
+    setSavedNotes(history);
+    
+    if (history.length > 0) {
+      setNoteContent(history[0].content);
+    } else {
+      setNoteContent('');
     }
+  };
 
-    // Avoid duplicate injection
-    if (document.getElementById('tab-van-widget-root')) {
-        return;
-    }
+  const saveNote = async () => {
+    if (!noteContent.trim()) return;
+    
+    const urlHash = btoa(window.location.href);
+    
+    let updatedHistory;
 
-    const container = document.createElement('div');
-    container.id = 'tab-van-widget-root';
-    container.className = 'tab-van-widget';
-
-    document.body.appendChild(container);
-
-    try {
-        const root = createRoot(container);
-        root.render(<NoteIndicator />);
-    } catch (err) {
-        console.error('Failed to render widget:', err);
-        container.remove();
-    }
-}
-
-// Wait for DOM to be ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', injectWidget);
-} else {
-    injectWidget();
-}
-
-// Re-inject on SPA navigation
-let lastUrl = location.href;
-new MutationObserver(() => {
-    const url = location.href;
-    if (url !== lastUrl) {
-        lastUrl = url;
-        // Re-check if we should inject on new URL
-        const widget = document.getElementById('tab-van-widget-root');
-        if (!widget) {
-            injectWidget();
+    if (editingId) {
+      // ✅ UPDATE EXISTING NOTE
+      updatedHistory = savedNotes.map(note => {
+        if (note.id === editingId) {
+          return {
+            ...note,
+            content: noteContent,
+            date: new Date().toISOString() // Update timestamp
+          };
         }
+        return note;
+      });
+      // Move the updated note to the top of the list
+      const updatedNote = updatedHistory.find(n => n.id === editingId);
+      updatedHistory = updatedHistory.filter(n => n.id !== editingId);
+      updatedHistory = [updatedNote, ...updatedHistory];
+      
+      setEditingId(null); // Reset editing mode
+    } else {
+      // ✅ CREATE NEW NOTE
+      const newNote = {
+        id: Date.now(),
+        content: noteContent,
+        date: new Date().toISOString()
+      };
+      updatedHistory = [newNote, ...savedNotes];
     }
-}).observe(document, { subtree: true, childList: true });
+    
+    await chrome.storage.local.set({ [`notes_history_${urlHash}`]: updatedHistory });
+    setSavedNotes(updatedHistory);
+    
+    // Optional: Clear text area after save if it was a new note? 
+    // Let's keep it for now so user can see what they saved.
+  };
+
+  // ✅ Load note into editor AND set editingId
+  const loadNoteIntoEditor = (noteToEdit) => {
+    setNoteContent(noteToEdit.content);
+    setEditingId(noteToEdit.id); // 🔑 Mark this ID as being edited
+    
+    // Scroll to top
+    const container = document.querySelector('#tab-van-dashboard-root div[style*="overflowY"]');
+    if(container) container.scrollTop = 0;
+  };
+
+  // ✅ Cancel editing mode (clears box and resets ID)
+  const cancelEdit = () => {
+    setNoteContent('');
+    setEditingId(null);
+  };
+
+  const deleteNote = async (idToDelete) => {
+    if(!confirm("Delete this note?")) return;
+    
+    const urlHash = btoa(window.location.href);
+    const updatedHistory = savedNotes.filter(n => n.id !== idToDelete);
+    
+    await chrome.storage.local.set({ [`notes_history_${urlHash}`]: updatedHistory });
+    setSavedNotes(updatedHistory);
+    
+    // If we deleted the note currently being edited, reset state
+    if (editingId === idToDelete) {
+      setNoteContent('');
+      setEditingId(null);
+    } else if (updatedHistory.length > 0 && !editingId) {
+       // If not editing, just load the newest one into the box
+       setNoteContent(updatedHistory[0].content);
+    } else if (updatedHistory.length === 0) {
+       setNoteContent('');
+    }
+  };
+
+  const toggleVisibility = () => {
+    const newState = !isVisible;
+    setIsVisible(newState);
+    chrome.storage.local.set({ widgetVisible: newState });
+  };
+
+  const toggleOpen = () => setIsOpen(!isOpen);
+
+  // --- Dragging Logic ---
+  const handleMouseDown = (e) => {
+    if (!isOpen) return;
+    setIsDragging(true);
+    dragOffset.current = { x: e.clientX - position.x, y: e.clientY - position.y };
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isDragging) return;
+      setPosition({ x: e.clientX - dragOffset.current.x, y: e.clientY - dragOffset.current.y });
+    };
+    const handleMouseUp = () => setIsDragging(false);
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging]);
+
+  if (!isVisible) {
+    return (
+      <button onClick={toggleVisibility} style={{ position: 'fixed', bottom: '20px', right: '20px', width: '50px', height: '50px', borderRadius: '50%', background: '#667eea', color: 'white', border: 'none', boxShadow: '0 4px 15px rgba(0,0,0,0.2)', cursor: 'pointer', zIndex: 999999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <StickyNote size={24} />
+      </button>
+    );
+  }
+
+  if (!isOpen) {
+    return (
+      <div onClick={toggleOpen} style={{ position: 'fixed', bottom: '20px', right: '20px', width: '60px', height: '60px', borderRadius: '50%', background: savedNotes.length > 0 ? '#10b981' : '#667eea', color: 'white', border: 'none', boxShadow: '0 4px 15px rgba(0,0,0,0.2)', cursor: 'pointer', zIndex: 999999, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.2s' }}>
+        <StickyNote size={28} />
+        {savedNotes.length > 0 && <span style={{fontSize:'10px', fontWeight:'bold'}}>{savedNotes.length}</span>}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ position: 'fixed', left: position.x, top: position.y, width: '340px', background: 'white', borderRadius: '12px', boxShadow: '0 10px 40px rgba(0,0,0,0.2)', zIndex: 999999, fontFamily: '-apple-system, sans-serif', overflow: 'hidden', border: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', maxHeight: '80vh' }}>
+      
+      {/* Header */}
+      <div onMouseDown={handleMouseDown} style={{ padding: '12px 16px', background: '#f9fafb', borderBottom: '1px solid #e5e7eb', cursor: 'move', display: 'flex', justifyContent: 'space-between', alignItems: 'center', userSelect: 'none', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', color: '#374151' }}>
+          <Move size={16} color="#9ca3af" />
+          <span>{editingId ? '✏️ Editing Note' : 'My Notes'}</span>
+          <span style={{fontSize:'10px', background:'#e5e7eb', padding:'2px 6px', borderRadius:'4px', color:'#6b7280'}}>
+            {new URL(currentUrl).hostname}
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          {editingId && (
+             <button onClick={cancelEdit} style={{border:'none', background:'#fee2e2', color:'#ef4444', cursor:'pointer', borderRadius:'4px', padding:'4px 8px', fontSize:'11px', fontWeight:'bold'}} title="Cancel Edit">
+               Cancel
+             </button>
+          )}
+          <button onClick={toggleOpen} style={{border:'none', background:'none', cursor:'pointer', color:'#6b7280'}} title="Minimize">
+            <Minimize2 size={16} />
+          </button>
+          <button onClick={toggleVisibility} style={{border:'none', background:'none', cursor:'pointer', color:'#ef4444'}} title="Hide">
+            <X size={16} />
+          </button>
+        </div>
+      </div>
+
+      {/* Scrollable Content Area */}
+      <div style={{ padding: '16px', overflowY: 'auto', flex: 1 }}>
+        
+        {/* Editor */}
+        <textarea
+          value={noteContent}
+          onChange={(e) => setNoteContent(e.target.value)}
+          placeholder={editingId ? "Modify this note..." : "Write new note..."}
+          style={{ width: '100%', height: '100px', padding: '10px', border: editingId ? '2px solid #f59e0b' : '1px solid #d1d5db', borderRadius: '8px', resize: 'none', fontFamily: 'inherit', fontSize: '14px', boxSizing: 'border-box', outline: 'none', marginBottom: '12px', backgroundColor: editingId ? '#fffbeb' : 'white' }}
+        />
+        
+        <button onClick={saveNote} style={{ width: '100%', padding: '10px', background: editingId ? '#f59e0b' : '#667eea', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginBottom: '20px' }}>
+          <Save size={16} /> {editingId ? 'Update Note' : 'Save Note'}
+        </button>
+
+        {/* Previous Notes List */}
+        {savedNotes.length > 0 && (
+          <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: '600', color: '#6b7280', marginBottom: '10px' }}>
+              <History size={14} />
+              <span>All Notes ({savedNotes.length})</span>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {savedNotes.map((note) => (
+                <div key={note.id} style={{ 
+                  background: editingId === note.id ? '#fef3c7' : '#f9fafb', 
+                  padding: '10px', 
+                  borderRadius: '6px', 
+                  border: editingId === note.id ? '2px solid #f59e0b' : '1px solid #f3f4f6', 
+                  position: 'relative',
+                  opacity: editingId === note.id ? 0.6 : 1 // Dim the one being edited
+                }}>
+                  <p style={{ margin: '0 0 6px 0', fontSize: '13px', lineHeight: '1.4', whiteSpace: 'pre-wrap', color: '#374151' }}>{note.content}</p>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '10px', color: '#9ca3af', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Clock size={10} /> {new Date(note.date).toLocaleDateString()}
+                      {editingId === note.id && <span style={{color:'#f59e0b', fontWeight:'bold', marginLeft:'4px'}}>(Editing)</span>}
+                    </span>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      <button 
+                        onClick={() => loadNoteIntoEditor(note)} 
+                        disabled={editingId === note.id}
+                        style={{ 
+                          background: editingId === note.id ? '#e5e7eb' : '#e0e7ff', 
+                          border: 'none', 
+                          color: editingId === note.id ? '#9ca3af' : '#4338ca', 
+                          cursor: editingId === note.id ? 'not-allowed' : 'pointer', 
+                          padding: '4px', 
+                          borderRadius: '4px', 
+                          display: 'flex', 
+                          alignItems: 'center' 
+                        }}
+                        title={editingId === note.id ? "Already editing" : "Edit this note"}
+                      >
+                        <Edit2 size={12} />
+                      </button>
+                      
+                      <button 
+                        onClick={() => deleteNote(note.id)} 
+                        style={{ background: '#fee2e2', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px', borderRadius: '4px', display: 'flex', alignItems: 'center' }}
+                        title="Delete permanently"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Inject
+if (!document.getElementById('tab-van-dashboard-root')) {
+  const div = document.createElement('div');
+  div.id = 'tab-van-dashboard-root';
+  document.body.appendChild(div);
+  createRoot(div).render(<NoteDashboard />);
+}

@@ -18,7 +18,16 @@ export const DEFAULT_TAB_RULES = {
             'linear.app',
             'vercel.com',
             'netlify.app',
-            'clickup.com'
+            'clickup.com',
+            'asana.com',
+            'slack.com',
+            'microsoft.com',
+            'openai.com',
+            'qwen.ai',
+            'deepseek.com',
+            'anthropic.com',
+            'perplexity.ai',
+            'groq.com',
         ]
     },
     distractions: {

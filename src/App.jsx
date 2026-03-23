@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, StickyNote, Focus, LogOut, Plus, Trash2, RefreshCw, Shield, Loader2 } from 'lucide-react';
+import { Users, Mail, UserPlus, LogOut, Plus, Trash2, RefreshCw, Shield, Loader2, Eye, EyeOff, DoorOpen, Focus } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import './App.css';
 
@@ -9,63 +9,53 @@ function App() {
   const [accounts, setAccounts] = useState([]);
   const [currentDomain, setCurrentDomain] = useState('');
   const [focusMode, setFocusMode] = useState(false);
-  const [isLoading, setIsLoading] = useState(true); // ✅ New Loading State
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [loginError, setLoginError] = useState('');
+  
+  // Loading & Auth States
+  const [isLoading, setIsLoading] = useState(true);
+  const [authMode, setAuthMode] = useState('login'); // 'login' | 'signup' | 'guest'
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState('');
+  
+  // Form States
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
-    console.log('🔄 Setting up auth listener...');
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('🔐 Auth event:', event, session?.user?.email);
-
-        if (event === 'SIGNED_IN' && session?.user) {
-          setUser(session.user);
-          setIsLoading(false);
-        }
-        if (event === 'SIGNED_OUT') {
-          setUser(null);
-          setIsLoading(false);
-        }
-      }
-    );
-
-    // Initialize app
     initializeApp();
-
-    return () => subscription?.unsubscribe();
+    return () => {}; // Cleanup handled inside if needed
   }, []);
 
   const initializeApp = async () => {
+    setIsLoading(true);
     try {
-      // 1. Check cached user first for instant UI
-      const { currentUser } = await new Promise((resolve) => {
-        chrome.storage.local.get(['currentUser'], (result) => resolve(result || {}));
-      });
-      if (currentUser?.email) {
-        setUser(currentUser);
-      }
+      // 1. Check Local Storage for User & Mode
+      const { currentUser, authMode: storedMode } = await new Promise(resolve => 
+        chrome.storage.local.get(['currentUser', 'authMode'], resolve)
+      );
 
-      // 2. Verify with Supabase
-      const { data: { user: supaUser } } = await supabase.auth.getUser();
-
-      if (supaUser) {
-        setUser(supaUser);
-        // Update cache
-        await new Promise((resolve) => {
-          chrome.storage.local.set(
-            { currentUser: { id: supaUser.id, email: supaUser.email } },
-            () => resolve()
-          );
-        });
+      if (currentUser) {
+        if (currentUser.is_guest) {
+          // Guest mode: Just load from storage
+          setUser(currentUser);
+          setAuthMode('guest');
+        } else {
+          // Logged in: Verify with Supabase
+          const { data: { user: supaUser } } = await supabase.auth.getUser();
+          if (supaUser) {
+            setUser(supaUser);
+            setAuthMode(storedMode || 'google');
+          } else {
+            // Session expired
+            clearAuth();
+          }
+        }
       } else {
-        setUser(null);
-        await new Promise((resolve) => chrome.storage.local.remove(['currentUser'], () => resolve()));
+        clearAuth();
       }
     } catch (err) {
-      console.warn('⚠️ Init error:', err);
-      setUser(null);
+      console.warn('Init error:', err);
+      clearAuth();
     } finally {
       setIsLoading(false);
       getCurrentTab();
@@ -73,53 +63,97 @@ function App() {
     }
   };
 
-  const handleLogin = async () => {
-    setIsLoggingIn(true);
-    setLoginError('');
-    console.log('🔐 [1/6] Starting login flow...');
+  const clearAuth = async () => {
+    setUser(null);
+    setAuthMode('login');
+    await chrome.storage.local.remove(['currentUser', 'authMode']);
+  };
 
+  // --- Handlers ---
+
+  const handleGuestLogin = async () => {
+    setIsProcessing(true);
+    setError('');
     try {
-      console.log('🔐 [2/6] Requesting background login...');
-      const res = await new Promise((resolve, reject) => {
-        chrome.runtime.sendMessage({ action: 'googleLogin' }, (response) => {
-          if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
-            return;
-          }
-          resolve(response);
-        });
-      });
-
-      if (!res?.success || !res.user) {
-        throw new Error(res?.error || 'Login failed. Please try again.');
+      const res = await sendMessage({ action: 'startGuestMode' });
+      if (res.success) {
+        setUser(res.user);
+        setAuthMode('guest');
+      } else {
+        throw new Error(res.error);
       }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
-      console.log('✅ [3/6] Login successful:', res.user.email);
-      setUser(res.user);
-      setIsLoading(false);
-      setIsLoggingIn(false);
+  const handleEmailAuth = async (isSignup) => {
+    if (!email || !password) {
+      setError('Please enter both email and password');
+      return;
+    }
+    setIsProcessing(true);
+    setError('');
+    
+    try {
+      const action = isSignup ? 'emailSignup' : 'emailLogin';
+      const res = await sendMessage({ action, email, password });
+      
+      if (res.success) {
+        setUser(res.user);
+        setAuthMode('email');
+        if (res.needsConfirmation) {
+          alert('Please check your email to confirm your account before logging in.');
+          clearAuth();
+        }
+      } else {
+        throw new Error(res.error);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
-    } catch (error) {
-      console.error('💥 Login failed:', error);
-      const e = error;
-      const code = e?.status || e?.code;
-      const desc = e?.error_description || e?.message_details || e?.cause?.message;
-      const base = e?.message || 'Login failed. Please try again.';
-      const suffix = desc ? `\n${desc}` : code ? ` (code: ${code})` : '';
-      const raw = `${base}${suffix}`;
-      const redirectMismatchHint = /redirect_uri_mismatch/i.test(raw)
-        ? `\n\nTip: In Google Cloud Console for the OAuth client_id in your manifest.json, ensure Authorized redirect URIs includes exactly https://${chrome.runtime.id}.chromiumapp.org (no trailing slash).`
-        : '';
-      setLoginError(`${raw}${redirectMismatchHint}`);
-      setIsLoggingIn(false);
+  const handleGoogleLogin = async () => {
+    setIsProcessing(true);
+    setError('');
+    try {
+      const res = await sendMessage({ action: 'googleLogin' });
+      if (res.success) {
+        setUser(res.user);
+        setAuthMode('google');
+      } else {
+        throw new Error(res.error);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    await new Promise((resolve) => chrome.storage.local.remove(['currentUser'], () => resolve()));
+    if (!user?.is_guest) {
+      await supabase.auth.signOut();
+    }
+    await chrome.storage.local.remove(['currentUser', 'authMode']);
     setUser(null);
+    setAuthMode('login');
     window.location.reload();
+  };
+
+  // Helper for messaging
+  const sendMessage = (msg) => {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(msg, (res) => {
+        if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+        else resolve(res);
+      });
+    });
   };
 
   const getCurrentTab = async () => {
@@ -130,14 +164,9 @@ function App() {
   };
 
   const loadAccounts = async () => {
-    try {
-      const result = await new Promise((resolve) => chrome.storage.local.get(null, (r) => resolve(r || {})));
-      const keys = Object.keys(result).filter(k => k.startsWith('account_'));
-      setAccounts(keys.map((k) => ({ key: k, ...result[k] })));
-    } catch (e) {
-      console.warn('⚠️ loadAccounts failed:', e);
-      setAccounts([]);
-    }
+    const result = await new Promise(resolve => chrome.storage.local.get(null, resolve));
+    const keys = Object.keys(result).filter(k => k.startsWith('account_'));
+    setAccounts(keys.map(k => ({ key: k, ...result[k] })));
   };
 
   const saveCurrentSession = async () => {
@@ -157,7 +186,7 @@ function App() {
   };
 
   const deleteAccount = async (key) => {
-    await new Promise((resolve) => chrome.storage.local.remove([key], () => resolve()));
+    await new Promise(resolve => chrome.storage.local.remove([key], resolve));
     loadAccounts();
   };
 
@@ -171,49 +200,107 @@ function App() {
     chrome.runtime.sendMessage({ action: 'organizeTabs', mode });
   };
 
-  // ✅ Render Loading State
+  // --- Render Functions ---
+
   if (isLoading) {
     return (
-      <div className="popup-container" style={{ minHeight: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center' }}>
-          <Loader2 className="animate-spin" size={32} color="#667eea" />
-          <p style={{ marginTop: '10px', color: 'white' }}>Loading Tab-Van...</p>
-        </div>
+      <div className="popup-container loading-screen">
+        <Loader2 className="animate-spin" size={40} color="#667eea" />
+        <p>Loading Tab-Van...</p>
       </div>
     );
   }
 
-  // ✅ Render Login Screen
   if (!user) {
     return (
       <div className="popup-container">
         <div className="login-screen">
           <h1>🌲 Tab-Van</h1>
           <p>Your Workspace Manager</p>
-          <button onClick={handleLogin} className="login-btn" disabled={isLoggingIn}>
-            {isLoggingIn ? <Loader2 className="animate-spin" size={20} /> : <Users size={20} />}
-            {isLoggingIn ? 'Signing in...' : 'Sign in with Google'}
-          </button>
-          {loginError ? (
-            <p style={{ marginTop: 16, color: '#fecaca', fontSize: 13, lineHeight: '18px' }}>
-              {loginError}
-            </p>
+          
+          {error && <div className="error-msg">{error}</div>}
+
+          {authMode === 'guest' ? (
+             <div className="guest-info">
+               <p>Entering Guest Mode...</p>
+               <Loader2 className="animate-spin" size={24} />
+             </div>
           ) : (
-            <p style={{ marginTop: 16, opacity: 0.85, fontSize: 13, lineHeight: '18px' }}>
-              After you pick your Gmail account, this popup will update automatically.
-            </p>
+            <>
+              {/* Email Form */}
+              <div className="auth-form">
+                <input 
+                  type="email" 
+                  placeholder="Email" 
+                  value={email} 
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={isProcessing}
+                  className="input-field"
+                />
+                <div className="password-input-wrapper">
+                  <input 
+                    type={showPassword ? "text" : "password"} 
+                    placeholder="Password" 
+                    value={password} 
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={isProcessing}
+                    className="input-field"
+                  />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="eye-btn">
+                    {showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}
+                  </button>
+                </div>
+                
+                <button 
+                  onClick={() => handleEmailAuth(authMode === 'signup')} 
+                  className="btn-primary"
+                  disabled={isProcessing}
+                >
+                  {isProcessing ? <Loader2 className="animate-spin" size={18}/> : 
+                   authMode === 'signup' ? <UserPlus size={18}/> : <Mail size={18}/>}
+                  {authMode === 'signup' ? 'Sign Up' : 'Log In'}
+                </button>
+              </div>
+
+              <div className="divider">OR</div>
+
+              {/* Google Button */}
+              <button onClick={handleGoogleLogin} className="btn-google" disabled={isProcessing}>
+                {isProcessing ? <Loader2 className="animate-spin" size={18}/> : <Users size={18}/>}
+                Sign in with Google
+              </button>
+
+              {/* Guest Button */}
+              <button onClick={handleGuestLogin} className="btn-guest" disabled={isProcessing}>
+                <DoorOpen size={18} />
+                Continue as Guest
+              </button>
+
+              {/* Toggle Mode */}
+              <p className="toggle-auth">
+                {authMode === 'login' ? "Don't have an account? " : "Already have an account? "}
+                <button onClick={() => { setAuthMode(authMode === 'login' ? 'signup' : 'login'); setError(''); }}>
+                  {authMode === 'login' ? 'Sign Up' : 'Log In'}
+                </button>
+              </p>
+            </>
           )}
         </div>
       </div>
     );
   }
 
-  // ✅ Render Main App
+  // Main App Dashboard
   return (
     <div className="popup-container">
       <div className="header">
         <h1>🌲 Tab-Van</h1>
-        <button onClick={handleLogout} className="logout-btn"><LogOut size={16} /></button>
+        <div className="user-info">
+          <span style={{fontSize: '11px', opacity: 0.8, marginRight: '8px'}}>
+            {user.is_guest ? 'Guest Mode' : user.email?.split('@')[0]}
+          </span>
+          <button onClick={handleLogout} className="logout-btn"><LogOut size={16} /></button>
+        </div>
       </div>
 
       <div className="tabs">
@@ -221,7 +308,7 @@ function App() {
           <Users size={16} /> Accounts
         </button>
         <button className={`tab-btn ${activeTab === 'focus' ? 'active' : ''}`} onClick={() => setActiveTab('focus')}>
-          <Focus size={16} /> Focus Mode
+          <Focus size={16} /> Focus
         </button>
       </div>
 
@@ -229,23 +316,23 @@ function App() {
         <div className="content">
           <div className="domain-info">
             <span className="domain">{currentDomain}</span>
-            <button onClick={saveCurrentSession} className="save-btn"><Plus size={16} /> Save Session</button>
+            <button onClick={saveCurrentSession} className="save-btn"><Plus size={16} /> Save</button>
           </div>
           <div className="accounts-list">
             {accounts.filter(acc => acc.key.includes(currentDomain)).map((account) => (
               <div key={account.key} className="account-card">
                 <div className="account-info">
                   <Users size={20} />
-                  <span>{account.key.split('_')[1]}</span>
+                  <span>{account.name}</span>
                 </div>
                 <div className="account-actions">
-                  <button onClick={() => switchAccount(account)} className="switch-btn"><RefreshCw size={16} /> Switch</button>
+                  <button onClick={() => switchAccount(account)} className="switch-btn"><RefreshCw size={16} /></button>
                   <button onClick={() => deleteAccount(account.key)} className="delete-btn"><Trash2 size={16} /></button>
                 </div>
               </div>
             ))}
             {accounts.filter(acc => acc.key.includes(currentDomain)).length === 0 && (
-              <p className="empty-state">No saved accounts for this domain</p>
+              <p className="empty-state">No saved accounts</p>
             )}
           </div>
         </div>
@@ -255,15 +342,14 @@ function App() {
         <div className="content">
           <div className="focus-mode-card">
             <div className="focus-header"><Shield size={24} /><h3>Focus Mode</h3></div>
-            <p>Block distracting websites</p>
+            <p>Block distractions</p>
             <button onClick={toggleFocusMode} className={`focus-toggle ${focusMode ? 'active' : ''}`}>
               {focusMode ? 'ON' : 'OFF'}
             </button>
           </div>
           <div className="organize-section">
-            <h3>Organize Tabs</h3>
-            <button onClick={() => organizeTabs('work')} className="organize-btn">💼 Group Work Tabs</button>
-            <button onClick={() => organizeTabs('distractions')} className="organize-btn">🎮 Group Distractions</button>
+            <button onClick={() => organizeTabs('work')} className="organize-btn">💼 Group Work</button>
+            <button onClick={() => organizeTabs('distractions')} className="organize-btn">🎮 Group Fun</button>
           </div>
         </div>
       )}

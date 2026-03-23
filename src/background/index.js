@@ -15,6 +15,80 @@ function decodeJwtPayload(token) {
         return null;
     }
 }
+export const DEFAULT_TAB_RULES = {
+    work: {
+      name: '💼 Work',
+      color: 'blue',
+      patterns: [
+        'github.com', 'gitlab.com', 'bitbucket.org', 'localhost', '127.0.0.1',
+        'stackoverflow.com', 'docs.', 'notion.so', 'figma.com', 'jira.',
+        'trello.com', 'linear.app', 'vercel.com', 'netlify.app', 'clickup.com',
+        'asana.com', 'slack.com', 'microsoft.com', 'openai.com', 'qwen.ai',
+        'deepseek.com', 'anthropic.com', 'perplexity.ai', 'groq.com',
+      ]
+    },
+    distractions: {
+      name: '🎮 Distractions',
+      color: 'red',
+      patterns: [
+        'youtube.com', 'reddit.com', 'twitter.com', 'x.com', 'facebook.com',
+        'instagram.com', 'whatsapp.com', 'tiktok.com', 'netflix.com',
+        'hotstar.com', 'primevideo', 'mxplayer', 'twitch.tv'
+      ]
+    },
+    learning: {
+      name: '📚 Learning',
+      color: 'yellow',
+      patterns: [
+        'coursera.org', 'udemy.com', 'freecodecamp.org', 'medium.com',
+        'dev.to', 'hashnode.com'
+      ]
+    }
+  };
+  
+  // Helper: Check if URL matches patterns
+  const matchesPattern = (url, patterns) => {
+    try {
+      const hostname = new URL(url).hostname;
+      return patterns.some(pattern => hostname.includes(pattern));
+    } catch {
+      return false;
+    }
+  };
+// ✅ NEW: Auto-Group Listener using DEFAULT_TAB_RULES
+chrome.tabs.onCreated.addListener(async (tab) => {
+    if (!tab.url || tab.url === 'about:blank') return;
+  
+    // Iterate through all rule categories
+    for (const [key, rule] of Object.entries(DEFAULT_TAB_RULES)) {
+      if (matchesPattern(tab.url, rule.patterns)) {
+        try {
+          const groups = await chrome.tabGroups.query({ title: rule.name });
+          let groupId;
+  
+          if (groups.length > 0) {
+            groupId = groups[0].id;
+          } else {
+            // Only auto-create group if you want, otherwise skip
+            // For now, let's create it so the tab has somewhere to go
+            groupId = await chrome.tabs.group({ tabIds: [tab.id] });
+            await chrome.tabGroups.update(groupId, { 
+              title: rule.name, 
+              color: rule.color, 
+              collapsed: key === 'distractions' 
+            });
+            return; 
+          }
+  
+          await chrome.tabs.group({ tabIds: [tab.id], groupId });
+          console.log(`✅ Auto-grouped ${new URL(tab.url).hostname} into ${rule.name}`);
+          return; // Stop after first match
+        } catch (error) {
+          console.error('Auto-group error:', error);
+        }
+      }
+    }
+  });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'saveSession') {
@@ -29,6 +103,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         startGoogleLogin(sendResponse);
         return true;
     }
+    else if (message.action === 'emailLogin') {
+        handleEmailLogin(message.email, message.password, sendResponse);
+        return true;
+    }
+    else if (message.action === 'emailSignup') {
+        handleEmailSignup(message.email, message.password, sendResponse);
+        return true;
+    }
+    else if (message.action === 'startGuestMode') {
+        startGuestMode(sendResponse);
+        return true;
+    }
     else if (message.action === 'organizeTabs') {
         organizeTabs(message.mode).then(() => sendResponse({ success: true }));
         return true;
@@ -40,17 +126,102 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     else if (message.action === 'openSidePanel') {
         chrome.sidePanel.open({ windowId: sender.tab.windowId }).then(() => sendResponse({ success: true }));
         return true;
+    } else if (message.action === 'closeSidePanel') {
+        // Note: Chrome doesn't have a direct "closeSidePanel" API command for extensions to force close it universally.
+        // However, we can try to blur focus or just acknowledge.
+        // The most reliable way in MV3 is actually handled by the browser when focus changes.
+        // But we can send a response to let the UI know.
+        sendResponse({ success: true });
+        return true;
     }
     return false;
 });
 
+// --- Auth Handlers ---
+
+async function startGuestMode(sendResponse) {
+    try {
+        const guestId = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const guestUser = {
+            id: guestId,
+            email: 'guest@tab-van.local',
+            is_guest: true,
+            app_metadata: { provider: 'guest' }
+        };
+
+        // Save to local storage only
+        await new Promise(resolve => {
+            chrome.storage.local.set({
+                currentUser: guestUser,
+                authMode: 'guest'
+            }, resolve);
+        });
+
+        console.log('✅ Guest mode started:', guestId);
+        sendResponse({ success: true, user: guestUser });
+    } catch (err) {
+        console.error('💥 Guest mode failed:', err);
+        sendResponse({ success: false, error: err.message });
+    }
+}
+
+async function handleEmailLogin(email, password, sendResponse) {
+    try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password
+        });
+
+        if (error) throw error;
+        if (!data.user) throw new Error('No user returned');
+
+        // Cache user
+        await new Promise(resolve => {
+            chrome.storage.local.set({
+                currentUser: { ...data.user, is_guest: false },
+                authMode: 'email'
+            }, resolve);
+        });
+
+        sendResponse({ success: true, user: data.user });
+    } catch (err) {
+        console.error('💥 Email login failed:', err);
+        sendResponse({ success: false, error: err.message });
+    }
+}
+
+async function handleEmailSignup(email, password, sendResponse) {
+    try {
+        const { data, error } = await supabase.auth.signUp({
+            email,
+            password
+        });
+
+        if (error) throw error;
+        
+        // Note: User might need to confirm email depending on Supabase settings
+        const user = data.user;
+        if (!user) throw new Error('Signup failed');
+
+        await new Promise(resolve => {
+            chrome.storage.local.set({
+                currentUser: { ...user, is_guest: false },
+                authMode: 'email'
+            }, resolve);
+        });
+
+        sendResponse({ success: true, user, needsConfirmation: !data.session });
+    } catch (err) {
+        console.error('💥 Email signup failed:', err);
+        sendResponse({ success: false, error: err.message });
+    }
+}
+
+// --- Existing Google Login ---
 async function startGoogleLogin(sendResponse) {
     try {
         console.log('🔐 [background] Starting Google login...');
         const manifest = chrome.runtime.getManifest();
-
-        // Supabase's Chrome extension flow expects this exact redirect URI.
-        // IMPORTANT: no trailing slash.
         const redirectUri = `https://${chrome.runtime.id}.chromiumapp.org`;
 
         const authUrl = new URL('https://accounts.google.com/o/oauth2/auth');
@@ -79,51 +250,37 @@ async function startGoogleLogin(sendResponse) {
             );
         });
 
-        console.log('🔐 [background] Extracting tokens...');
         const url = new URL(redirectedTo);
         const hashParams = new URLSearchParams(url.hash?.startsWith('#') ? url.hash.slice(1) : url.hash);
-        const searchParams = url.searchParams;
+        const idToken = hashParams.get('id_token');
+        const error = hashParams.get('error');
 
-        const idToken = hashParams.get('id_token') || searchParams.get('id_token');
-        const error = hashParams.get('error') || searchParams.get('error');
-        const errorDescription = hashParams.get('error_description') || searchParams.get('error_description');
+        if (error) throw new Error(`OAuth error: ${error}`);
+        if (!idToken) throw new Error('No ID token received');
 
-        if (error) throw new Error(`OAuth error: ${error}${errorDescription ? ` - ${errorDescription}` : ''}`);
-        if (!idToken) throw new Error('No ID token received (id_token missing)');
-
-        const tokenPayload = decodeJwtPayload(idToken);
-        const tokenNonce = tokenPayload?.nonce;
-        const nonceForSupabase = tokenNonce || nonce;
-
-        console.log('🔐 [background] Signing in to Supabase...');
         const { error: signInError } = await supabase.auth.signInWithIdToken({
             provider: 'google',
             token: idToken
-          });
+        });
 
         if (signInError) throw signInError;
 
-        // Wait for session to settle, then read it back.
         let finalUser = null;
         for (let i = 0; i < 6; i++) {
             const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                finalUser = user;
-                break;
-            }
+            if (user) { finalUser = user; break; }
             await new Promise((r) => setTimeout(r, 250 * (i + 1)));
         }
 
-        if (!finalUser) throw new Error('Signed in, but user not found after retries');
+        if (!finalUser) throw new Error('User not found after retries');
 
         await new Promise((resolve) => {
-            chrome.storage.local.set(
-                { currentUser: { id: finalUser.id, email: finalUser.email } },
-                () => resolve()
-            );
+            chrome.storage.local.set({
+                currentUser: { ...finalUser, is_guest: false },
+                authMode: 'google'
+            }, () => resolve());
         });
 
-        console.log('✅ [background] Google login success:', finalUser.email);
         sendResponse({ success: true, user: finalUser });
     } catch (err) {
         console.error('💥 [background] googleLogin failed:', err);
@@ -131,13 +288,11 @@ async function startGoogleLogin(sendResponse) {
     }
 }
 
+// --- Existing Tab/Cookie Functions (Unchanged) ---
 async function saveAccountSession(name, domain) {
     const cookies = await chrome.cookies.getAll({ domain });
     await new Promise((resolve) => {
-        chrome.storage.local.set(
-            { [`account_${name}_${domain}`]: { name, domain, cookies, savedAt: new Date().toISOString() } },
-            () => resolve()
-        );
+        chrome.storage.local.set({ [`account_${name}_${domain}`]: { name, domain, cookies, savedAt: new Date().toISOString() } }, () => resolve());
     });
 }
 
@@ -149,12 +304,10 @@ async function loadAccountSession(name, domain) {
     const session = result[key];
     if (!session?.cookies) return { success: false, error: 'Not found' };
 
-    // Clear existing
     const existing = await chrome.cookies.getAll({ domain });
     for (const c of existing) {
         try { await chrome.cookies.remove({ url: `http${c.secure ? 's' : ''}://${c.domain}${c.path}`, name: c.name }); } catch (e) { }
     }
-    // Set new
     for (const c of session.cookies) {
         try {
             await chrome.cookies.set({

@@ -1,128 +1,96 @@
-.sidepanel-container {
-    width: 100%;
-    min-height: 100vh;
-    padding: 20px;
-    background: #f9fafb;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    overflow-y: auto;
-}
-
 .sidepanel-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 20px;
-    color: #667eea;
-}
-
-.sidepanel-header h2 {
-    margin: 0;
-    font-size: 20px;
-}
-
-.current-page {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px;
-    background: white;
-    border-radius: 8px;
-    margin-bottom: 16px;
-    font-size: 14px;
-    color: #6b7280;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.note-input textarea {
-    width: 100%;
-    padding: 12px;
-    border: 2px solid #e5e7eb;
-    border-radius: 8px;
-    resize: none;
-    font-family: inherit;
-    margin-bottom: 8px;
-    font-size: 14px;
-}
-
-.note-input textarea:focus {
-    outline: none;
-    border-color: #667eea;
-}
-
-.save-note-btn {
-    width: 100%;
-    padding: 10px;
-    background: #667eea;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    transition: background 0.2s;
-}
-
-.save-note-btn:hover {
-    background: #5568d3;
-}
-
-.notes-list h3 {
-    margin: 24px 0 12px;
-    font-size: 16px;
-    color: #374151;
-}
-
-.note-card {
-    background: white;
-    padding: 12px;
-    border-radius: 8px;
-    margin-bottom: 12px;
-    border-left: 4px solid #667eea;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.note-card p {
-    margin: 0 0 8px;
-    line-height: 1.5;
-    white-space: pre-wrap;
-}
-
-.note-meta {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 12px;
-    color: #9ca3af;
-}
-
-.note-date {
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e5e7eb;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .header-left {
     display: flex;
     align-items: center;
-    gap: 4px;
-}
-
-.delete-note {
-    background: none;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .header-left h2 {
+    margin: 0;
+    font-size: 18px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  /* ✅ Container for Right Side Buttons */
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  
+  /* ✅ The New Hide/Cross Button */
+  .icon-btn-small {
+    background: #f3f4f6;
+    color: #4b5563;
     border: none;
-    color: #ef4444;
+    border-radius: 6px;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
-    padding: 4px;
-    border-radius: 4px;
-    transition: background 0.2s;
-}
-
-.delete-note:hover {
+    transition: all 0.2s;
+  }
+  
+  .icon-btn-small:hover {
+    background: #e5e7eb;
+    color: #000;
+    transform: scale(1.05);
+  }
+  
+  /* Logout Button */
+  .logout-btn-small {
     background: #fee2e2;
-}
-
-.empty-notes {
+    color: #dc2626;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    font-weight: 600;
+    font-size: 13px;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  
+  .logout-btn-small:hover {
+    background: #fecaca;
+  }
+  
+  /* Empty State Message */
+  .empty-state-message {
     text-align: center;
-    color: #9ca3af;
-    padding: 20px;
-    font-style: italic;
-}
+    padding: 40px 20px;
+    color: #6b7280;
+    background: #f9fafb;
+    border-radius: 8px;
+    margin-top: 20px;
+  }
+  
+  /* Existing styles... */
+  .guest-warning { background: #fffbeb; color: #92400e; padding: 8px; border-radius: 6px; font-size: 12px; margin-bottom: 15px; border: 1px solid #fcd34d; }
+  .current-page { display:flex; align-items:center; gap:8px; padding:10px; background:white; border-radius:8px; margin-bottom:15px; color:#6b7280; font-size:14px; }
+  .note-input textarea { width:100%; padding:12px; border:2px solid #e5e7eb; border-radius:8px; resize:none; margin-bottom:8px; font-family:inherit; }
+  .save-note-btn { width:100%; padding:10px; background:#667eea; color:white; border:none; border-radius:8px; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; }
+  .notes-list h3 { margin:20px 0 10px; font-size:15px; color:#374151; }
+  .note-card { background:white; padding:12px; border-radius:8px; margin-bottom:10px; border-left:4px solid #667eea; }
+  .note-meta { display:flex; justify-content:space-between; align-items:center; font-size:12px; color:#9ca3af; margin-top:8px; }
+  .delete-note { background:none; border:none; color:#ef4444; cursor:pointer; padding:4px; }
+  .empty-notes { text-align:center; color:#9ca3af; padding:20px; }
