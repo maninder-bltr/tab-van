@@ -2,14 +2,12 @@
     "manifest_version": 3,
     "name": "Tab-Van - Workspace Manager",
     "version": "1.0.0",
-    "description": "Multi-account switcher, context-aware notes, and smart tab cleanup",
+    "description": "Context-aware notes, smart tabs, workspace snapshots, and time guard",
     "permissions": [
         "tabs",
-        "cookies",
         "storage",
         "sidePanel",
         "scripting",
-        "declarativeNetRequest",
         "tabGroups",
         "identity",
         "contextMenus"

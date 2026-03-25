@@ -1,54 +1,1189 @@
-import React, { useState, useEffect } from 'react';
-import { Users, Mail, UserPlus, LogOut, Plus, Trash2, RefreshCw, Shield, Loader2, Eye, EyeOff, DoorOpen, Focus } from 'lucide-react';
+import React, { useState, useEffect, useRef, memo } from 'react';
+import {
+  Mail, UserPlus, Users, LogOut, Loader2, Eye, EyeOff, DoorOpen, Sparkles, Save, RotateCcw, Timer,
+  LayoutDashboard, Trash2, Edit3, Check, Search, X, PlusCircle, Globe, FileText, Home, FolderOpen, Plus, CheckCircle
+} from 'lucide-react';
 import { supabase } from './lib/supabase';
 import './App.css';
+import { getContextKey } from './utils/domainUtils';
 
+// ✅ HomeTab Component - Fixed Spacing
+const HomeTab = ({ error, isTabsOrganized, toggleTabOrganization, isProcessing, timeGuard, setCurrentTab }) => (
+  <div className="content" style={{ padding: '20px', paddingBottom: '20px' }}>
+    {error && <div className="error-msg" style={{ color: '#991b1b', background: '#fee2e2', padding: '12px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' }}>{error}</div>}
+
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* Organize Tabs Card */}
+      <div className="toggle-card" style={{
+        background: 'white',
+        border: '2px solid #e2e8f0',
+        borderRadius: '12px',
+        padding: '20px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+        transition: 'all 0.2s'
+      }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = '#667eea';
+          e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.15)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = '#e2e8f0';
+          e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
+        }}>
+        <div className="toggle-info" style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
+          {isTabsOrganized ?
+            <CheckCircle size={24} color="#10b981" strokeWidth={2.5} /> :
+            <Sparkles size={24} color="#667eea" strokeWidth={2.5} />
+          }
+          <div>
+            <div style={{ fontWeight: '700', fontSize: '16px', color: '#1e293b' }}>
+              {isTabsOrganized ? 'Tabs Organized' : 'Organize Tabs'}
+            </div>
+            <div style={{ fontSize: '13px', color: '#64748b', marginTop: '4px', lineHeight: '1.5' }}>
+              {isTabsOrganized
+                ? 'Groups active: Work & Distractions. Click to undo.'
+                : 'Group tabs by Work/Distraction automatically.'}
+            </div>
+          </div>
+        </div>
+
+        <button
+          onClick={toggleTabOrganization}
+          disabled={isProcessing}
+          className={`toggle-switch ${isTabsOrganized ? 'active' : ''}`}
+          title={isTabsOrganized ? "Click to ungroup tabs" : "Click to group tabs"}
+        >
+          <span className={`toggle-knob ${isTabsOrganized ? 'active' : ''}`} />
+        </button>
+      </div>
+
+      {/* Notes Quick Access Card */}
+      <button
+        disabled={isProcessing}
+        onClick={() => setCurrentTab('notes')}
+        className="btn-action-secondary"
+        style={{
+          background: 'white',
+          border: '2px solid #e2e8f0',
+          borderRadius: '12px',
+          padding: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px',
+          cursor: isProcessing ? 'not-allowed' : 'pointer',
+          transition: 'all 0.2s',
+          textAlign: 'left',
+          width: '100%',
+          opacity: isProcessing ? 0.6 : 1
+        }}
+        onMouseEnter={(e) => {
+          if (!isProcessing) {
+            e.currentTarget.style.borderColor = '#667eea';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.15)';
+            e.currentTarget.style.transform = 'translateY(-2px)';
+          }
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = '#e2e8f0';
+          e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
+          e.currentTarget.style.transform = 'translateY(0)';
+        }}
+      >
+        <div style={{
+          width: '44px',
+          height: '44px',
+          background: 'rgba(102, 126, 234, 0.1)',
+          borderRadius: '10px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <FileText size={22} color="#667eea" strokeWidth={2} />
+        </div>
+        <div>
+          <div style={{ fontWeight: '700', fontSize: '16px', color: '#1e293b' }}>Notes</div>
+          <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>Quick Access</div>
+        </div>
+      </button>
+
+      {/* Manage Workspaces Card */}
+      <button
+        disabled={isProcessing}
+        onClick={() => setCurrentTab('workspaces')}
+        className="btn-action-secondary"
+        style={{
+          background: 'white',
+          border: '2px solid #e2e8f0',
+          borderRadius: '12px',
+          padding: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px',
+          cursor: isProcessing ? 'not-allowed' : 'pointer',
+          transition: 'all 0.2s',
+          textAlign: 'left',
+          width: '100%',
+          opacity: isProcessing ? 0.6 : 1
+        }}
+        onMouseEnter={(e) => {
+          if (!isProcessing) {
+            e.currentTarget.style.borderColor = '#667eea';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.15)';
+            e.currentTarget.style.transform = 'translateY(-2px)';
+          }
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = '#e2e8f0';
+          e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
+          e.currentTarget.style.transform = 'translateY(0)';
+        }}
+      >
+        <div style={{
+          width: '44px',
+          height: '44px',
+          background: 'rgba(102, 126, 234, 0.1)',
+          borderRadius: '10px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <FolderOpen size={22} color="#667eea" strokeWidth={2} />
+        </div>
+        <div>
+          <div style={{ fontWeight: '700', fontSize: '16px', color: '#1e293b' }}>Manage Workspaces</div>
+          <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>Snapshots & Restore</div>
+        </div>
+      </button>
+
+      {/* Website Time Guard Card */}
+      <div style={{
+        background: 'white',
+        border: '2px solid #e2e8f0',
+        borderRadius: '12px',
+        padding: '20px',
+        textAlign: 'center',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+      }}>
+        <h4 style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+          margin: '0 0 16px 0',
+          fontSize: '16px',
+          fontWeight: '700',
+          color: '#1e293b'
+        }}>
+          <Timer size={20} color="#667eea" strokeWidth={2} />
+          Website Time Guard
+        </h4>
+        <div style={{
+          background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+          padding: '16px',
+          borderRadius: '10px',
+          marginBottom: '12px'
+        }}>
+          <p style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#92400e', fontWeight: '600' }}>
+            ⏱ 1 second = ₹1 lost
+          </p>
+          <p style={{ margin: 0, fontSize: '15px', color: '#78350f', fontWeight: '700' }}>
+            You spent <strong>{timeGuard.timeSpent || 0}s</strong> → <strong>₹{timeGuard.wastedAmount || 0}</strong> lost 💸
+          </p>
+        </div>
+        {timeGuard.latestNudge ? (
+          <p style={{ margin: 0, fontStyle: 'italic', color: '#64748b', fontSize: '13px' }}>
+            "{timeGuard.latestNudge.message}"
+          </p>
+        ) : (
+          <p style={{ margin: 0, color: '#94a3b8', fontSize: '13px', fontWeight: '500' }}>
+            Stay intentional. Every second counts.
+          </p>
+        )}
+      </div>
+    </div>
+  </div>
+);
+
+// ✅ NotesTab Component - Fixed Spacing
+const NotesTab = memo(({
+  notes,
+  newNoteContent,
+  setNewNoteContent,
+  filter,
+  setFilter,
+  searchQuery,
+  setSearchQuery,
+  editingNoteId,
+  setEditingNoteId,
+  editContent,
+  setEditContent,
+  onAddGeneralNote,
+  onDeleteNote,
+  onStartEditing,
+  onSaveEdit,
+  isProcessing
+}) => {
+  const filteredNotes = notes
+    .filter(n => {
+      if (filter === 'website') return !!n.domain;
+      if (filter === 'general') return !n.domain;
+      return true;
+    })
+    .filter(n =>
+      n.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (n.domain && n.domain.toLowerCase().includes(searchQuery.toLowerCase()))
+    );
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      onAddGeneralNote();
+    }
+  };
+
+  return (
+    <div className="dashboard-container" style={{ padding: '20px', paddingBottom: '20px' }}>
+      {/* Add General Note Section */}
+      <div style={{
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        padding: '20px',
+        borderRadius: '12px',
+        marginBottom: '20px',
+        boxShadow: '0 4px 15px rgba(102, 126, 234, 0.3)'
+      }}>
+        <label style={{
+          display: 'block',
+          fontSize: '11px',
+          fontWeight: '700',
+          color: 'rgba(255,255,255,0.95)',
+          marginBottom: '10px',
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px'
+        }}>
+          📝 Quick General Note
+        </label>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <input
+            type="text"
+            placeholder="Type your note and press Enter..."
+            value={newNoteContent}
+            onChange={(e) => setNewNoteContent(e.target.value)}
+            onKeyDown={handleKeyDown}
+            style={{
+              flex: 1,
+              padding: '12px 16px',
+              background: 'rgba(255,255,255,0.95)',
+              border: '2px solid rgba(255,255,255,0.3)',
+              borderRadius: '8px',
+              color: '#1e293b',
+              fontSize: '14px',
+              fontWeight: '500',
+              outline: 'none',
+              transition: 'all 0.2s',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+            }}
+            onFocus={(e) => {
+              e.target.style.borderColor = 'rgba(255,255,255,0.8)';
+              e.target.style.transform = 'translateY(-1px)';
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = 'rgba(255,255,255,0.3)';
+              e.target.style.transform = 'translateY(0)';
+            }}
+          />
+          <button
+            onClick={onAddGeneralNote}
+            disabled={!newNoteContent.trim() || isProcessing}
+            style={{
+              padding: '12px 24px',
+              background: newNoteContent.trim() ? '#ffffff' : 'rgba(255,255,255,0.3)',
+              color: newNoteContent.trim() ? '#667eea' : 'rgba(255,255,255,0.5)',
+              border: 'none',
+              borderRadius: '8px',
+              fontWeight: '700',
+              fontSize: '14px',
+              cursor: newNoteContent.trim() ? 'pointer' : 'not-allowed',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s',
+              boxShadow: newNoteContent.trim() ? '0 2px 8px rgba(0,0,0,0.2)' : 'none'
+            }}
+            onMouseEnter={(e) => {
+              if (newNoteContent.trim()) {
+                e.target.style.transform = 'translateY(-2px)';
+                e.target.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (newNoteContent.trim()) {
+                e.target.style.transform = 'translateY(0)';
+                e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+              }
+            }}
+          >
+            <Plus size={18} strokeWidth={3} />
+            Add
+          </button>
+        </div>
+      </div>
+
+      {/* Search Bar */}
+      <div style={{
+        position: 'relative',
+        marginBottom: '24px'
+      }}>
+        <Search size={18} style={{
+          position: 'absolute',
+          left: 16,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          color: '#94a3b8',
+          pointerEvents: 'none',
+          zIndex: 1
+        }} />
+        <input
+          type="text"
+          placeholder="Search all notes..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '12px 16px 12px 44px',
+            background: '#f8fafc',
+            color: '#1e293b',
+            border: '2px solid #e2e8f0',
+            borderRadius: '10px',
+            fontSize: '14px',
+            fontWeight: '500',
+            outline: 'none',
+            transition: 'all 0.2s',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+          }}
+          onFocus={(e) => {
+            e.target.style.borderColor = '#667eea';
+            e.target.style.background = 'white';
+            e.target.style.boxShadow = '0 0 0 4px rgba(102, 126, 234, 0.1)';
+          }}
+          onBlur={(e) => {
+            e.target.style.borderColor = '#e2e8f0';
+            e.target.style.background = '#f8fafc';
+            e.target.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)';
+          }}
+        />
+      </div>
+
+      {/* Filter Buttons */}
+      <div style={{
+        display: 'flex',
+        gap: '8px',
+        marginBottom: '24px',
+        flexWrap: 'wrap'
+      }}>
+        {['all', 'website', 'general'].map(f => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            style={{
+              padding: '8px 20px',
+              background: filter === f ? '#667eea' : '#f1f5f9',
+              color: filter === f ? 'white' : '#64748b',
+              border: 'none',
+              borderRadius: '20px',
+              fontSize: '13px',
+              fontWeight: filter === f ? '600' : '500',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              textTransform: 'capitalize',
+              boxShadow: filter === f ? '0 2px 8px rgba(102, 126, 234, 0.3)' : 'none'
+            }}
+            onMouseEnter={(e) => {
+              if (filter !== f) {
+                e.target.style.background = '#e2e8f0';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (filter !== f) {
+                e.target.style.background = '#f1f5f9';
+              }
+            }}
+          >
+            {f.charAt(0).toUpperCase() + f.slice(1)}
+            {f === 'all' && notes.length > 0 && (
+              <span style={{
+                marginLeft: '6px',
+                padding: '2px 6px',
+                background: filter === f ? 'rgba(255,255,255,0.2)' : '#e2e8f0',
+                borderRadius: '10px',
+                fontSize: '11px',
+                fontWeight: '600'
+              }}>
+                {notes.length}
+              </span>
+            )}
+            {f === 'website' && notes.filter(n => n.domain).length > 0 && (
+              <span style={{
+                marginLeft: '6px',
+                padding: '2px 6px',
+                background: filter === f ? 'rgba(255,255,255,0.2)' : '#e2e8f0',
+                borderRadius: '10px',
+                fontSize: '11px',
+                fontWeight: '600'
+              }}>
+                {notes.filter(n => n.domain).length}
+              </span>
+            )}
+            {f === 'general' && notes.filter(n => !n.domain).length > 0 && (
+              <span style={{
+                marginLeft: '6px',
+                padding: '2px 6px',
+                background: filter === f ? 'rgba(255,255,255,0.2)' : '#e2e8f0',
+                borderRadius: '10px',
+                fontSize: '11px',
+                fontWeight: '600'
+              }}>
+                {notes.filter(n => !n.domain).length}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Notes Grid */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {filteredNotes.length === 0 ? (
+          <div style={{
+            textAlign: 'center',
+            padding: '60px 20px',
+            color: '#94a3b8',
+            background: '#f8fafc',
+            borderRadius: '12px',
+            border: '2px dashed #e2e8f0'
+          }}>
+            <FileText size={48} style={{ opacity: 0.3, marginBottom: 16, margin: '0 auto' }} />
+            <p style={{ fontSize: '15px', marginBottom: '8px', color: '#64748b', fontWeight: '500' }}>
+              {searchQuery ? 'No notes found matching your search.' :
+                filter === 'general' ? 'No general notes yet. Write one above!' :
+                  filter === 'website' ? 'No website notes yet.' :
+                    'No notes yet. Start by writing a general note above!'}
+            </p>
+          </div>
+        ) : (
+          filteredNotes.map(note => (
+            <div key={note.id} style={{
+              background: 'white',
+              border: '2px solid #e2e8f0',
+              borderRadius: '12px',
+              padding: '16px',
+              transition: 'all 0.2s',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+            }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#667eea';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.15)';
+                e.currentTarget.style.transform = 'translateY(-2px)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#e2e8f0';
+                e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
+                e.currentTarget.style.transform = 'translateY(0)';
+              }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '6px',
+                  padding: '6px 12px',
+                  background: note.domain ? 'rgba(102, 126, 234, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                  color: note.domain ? '#667eea' : '#10b981',
+                  borderRadius: '8px', fontSize: '11px', fontWeight: '700',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px'
+                }}>
+                  {note.domain ? <><Globe size={12} /> {note.domain}</> : '📌 General'}
+                </span>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  {editingNoteId === note.id ? (
+                    <button onClick={() => onSaveEdit(note.id)}
+                      style={{
+                        background: '#10b981', border: 'none', color: 'white',
+                        padding: '8px', borderRadius: '8px', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.background = '#059669';
+                        e.target.style.transform = 'scale(1.1)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.background = '#10b981';
+                        e.target.style.transform = 'scale(1)';
+                      }}
+                    >
+                      <Check size={16} strokeWidth={3} />
+                    </button>
+                  ) : (
+                    <button onClick={() => onStartEditing(note)}
+                      style={{
+                        background: '#f1f5f9', border: 'none', color: '#64748b',
+                        padding: '8px', borderRadius: '8px', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.background = '#667eea';
+                        e.target.style.color = 'white';
+                        e.target.style.transform = 'scale(1.1)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.background = '#f1f5f9';
+                        e.target.style.color = '#64748b';
+                        e.target.style.transform = 'scale(1)';
+                      }}
+                    >
+                      <Edit3 size={16} strokeWidth={2} />
+                    </button>
+                  )}
+                  <button onClick={() => onDeleteNote(note.id)}
+                    style={{
+                      background: '#fee2e2', border: 'none', color: '#ef4444',
+                      padding: '8px', borderRadius: '8px', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.background = '#ef4444';
+                      e.target.style.color = 'white';
+                      e.target.style.transform = 'scale(1.1)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.background = '#fee2e2';
+                      e.target.style.color = '#ef4444';
+                      e.target.style.transform = 'scale(1)';
+                    }}
+                  >
+                    <Trash2 size={16} strokeWidth={2} />
+                  </button>
+                </div>
+              </div>
+              {editingNoteId === note.id ? (
+                <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} autoFocus
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    background: '#f8fafc',
+                    border: '2px solid #667eea',
+                    borderRadius: '8px',
+                    color: '#1e293b',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    outline: 'none',
+                    minHeight: '80px',
+                    lineHeight: '1.5',
+                    resize: 'vertical'
+                  }} />
+              ) : (
+                <p style={{
+                  margin: 0,
+                  fontSize: '14px',
+                  lineHeight: '1.6',
+                  color: '#1e293b',
+                  fontWeight: '500',
+                  whiteSpace: 'pre-wrap'
+                }}>
+                  {note.content}
+                </p>
+              )}
+              <div style={{
+                marginTop: '12px',
+                paddingTop: '12px',
+                borderTop: '1px solid #f1f5f9',
+                fontSize: '11px',
+                color: '#94a3b8',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <span style={{ fontWeight: '500' }}>
+                  Updated {new Date(note.updatedAt).toLocaleDateString('en-GB', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                  })}
+                </span>
+                {note.sourceUrl && (
+                  <span style={{
+                    background: '#f1f5f9',
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    fontWeight: '500'
+                  }}>
+                    {new URL(note.sourceUrl).hostname}
+                  </span>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+});
+
+// ✅ WorkspacesTab Component - Fixed Spacing & Bottom Line
+const WorkspacesTab = ({ workspaces, isWorkspaceModalOpen, setIsWorkspaceModalOpen, workspaceName, setWorkspaceName, workspaceFilter, setWorkspaceFilter, isProcessing, handleSaveWorkspace, handleRestoreWorkspace, handleDeleteWorkspace }) => (
+  <div className="workspaces-container" style={{ padding: '20px', paddingBottom: '20px' }}>
+    <div style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '24px'
+    }}>
+      <h2 style={{
+        fontSize: '20px',
+        margin: 0,
+        fontWeight: '700',
+        color: '#1e293b'
+      }}>
+        Workspaces
+      </h2>
+      <button
+        onClick={() => setIsWorkspaceModalOpen(true)}
+        className="btn-save-new"
+        style={{
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          color: 'white',
+          border: 'none',
+          padding: '12px 20px',
+          borderRadius: '10px',
+          fontWeight: '600',
+          fontSize: '14px',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          boxShadow: '0 4px 15px rgba(102, 126, 234, 0.3)',
+          transition: 'all 0.2s'
+        }}
+        onMouseEnter={(e) => {
+          e.target.style.transform = 'translateY(-2px)';
+          e.target.style.boxShadow = '0 6px 20px rgba(102, 126, 234, 0.4)';
+        }}
+        onMouseLeave={(e) => {
+          e.target.style.transform = 'translateY(0)';
+          e.target.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.3)';
+        }}
+      >
+        <Plus size={18} strokeWidth={3} />
+        Save Snap
+      </button>
+    </div>
+
+    <div className="workspaces-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      {workspaces.length === 0 ? (
+        <div className="empty-state" style={{
+          textAlign: 'center',
+          padding: '60px 20px',
+          background: '#f8fafc',
+          borderRadius: '12px',
+          border: '2px dashed #e2e8f0'
+        }}>
+          <FolderOpen size={48} style={{ opacity: 0.2, marginBottom: 16, margin: '0 auto', color: '#667eea' }} />
+          <p style={{ margin: 0, fontSize: '15px', color: '#64748b', fontWeight: '500' }}>No saved workspaces yet.</p>
+          <p style={{ margin: '8px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>Click "Save Snap" to create your first workspace!</p>
+        </div>
+      ) : (
+        workspaces.map(ws => (
+          <div key={ws.id} className="workspace-card" style={{
+            background: 'white',
+            border: '2px solid #e2e8f0',
+            borderRadius: '12px',
+            padding: '20px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            transition: 'all 0.2s',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+          }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = '#667eea';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.15)';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = '#e2e8f0';
+              e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}>
+            <div className="ws-info">
+              <h3 style={{ margin: '0 0 6px 0', fontSize: '16px', fontWeight: '700', color: '#1e293b' }}>{ws.name}</h3>
+              <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
+                <strong>{ws.tabs.length}</strong> tabs • {new Date(ws.createdAt).toLocaleDateString('en-GB', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric'
+                })}
+              </p>
+            </div>
+            <div className="ws-actions" style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => handleRestoreWorkspace(ws.id)}
+                className="icon-btn"
+                title="Restore"
+                style={{
+                  background: '#f1f5f9',
+                  border: 'none',
+                  color: '#10b981',
+                  padding: '10px',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = '#10b981';
+                  e.target.style.color = 'white';
+                  e.target.style.transform = 'scale(1.1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = '#f1f5f9';
+                  e.target.style.color = '#10b981';
+                  e.target.style.transform = 'scale(1)';
+                }}
+              >
+                <RotateCcw size={18} strokeWidth={2} />
+              </button>
+              <button
+                onClick={() => handleDeleteWorkspace(ws.id)}
+                className="icon-btn delete"
+                title="Delete"
+                style={{
+                  background: '#fee2e2',
+                  border: 'none',
+                  color: '#ef4444',
+                  padding: '10px',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = '#ef4444';
+                  e.target.style.color = 'white';
+                  e.target.style.transform = 'scale(1.1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = '#fee2e2';
+                  e.target.style.color = '#ef4444';
+                  e.target.style.transform = 'scale(1)';
+                }}
+              >
+                <Trash2 size={18} strokeWidth={2} />
+              </button>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+
+    {isWorkspaceModalOpen && (
+      <div className="modal-overlay" style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0,0,0,0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999
+      }}>
+        <div className="modal-content" style={{
+          background: 'white',
+          borderRadius: '12px',
+          padding: '24px',
+          width: '90%',
+          maxWidth: '400px',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+        }}>
+          <div className="modal-header" style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '20px'
+          }}>
+            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#1e293b' }}>Save Workspace</h3>
+            <button
+              onClick={() => setIsWorkspaceModalOpen(false)}
+              style={{
+                background: '#f1f5f9',
+                border: 'none',
+                color: '#64748b',
+                padding: '8px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.background = '#ef4444';
+                e.target.style.color = 'white';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.background = '#f1f5f9';
+                e.target.style.color = '#64748b';
+              }}
+            >
+              <X size={20} strokeWidth={2} />
+            </button>
+          </div>
+
+          <div className="modal-body">
+            <div className="input-group" style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#64748b', marginBottom: '8px' }}>
+                Name Your Workspace
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Work Morning, Side Project..."
+                value={workspaceName}
+                onChange={e => setWorkspaceName(e.target.value)}
+                autoFocus
+                className="modal-input"
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  background: '#f8fafc',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#1e293b',
+                  outline: 'none',
+                  transition: 'all 0.2s'
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = '#667eea';
+                  e.target.style.background = 'white';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = '#e2e8f0';
+                  e.target.style.background = '#f8fafc';
+                }}
+              />
+            </div>
+
+            <div className="options-group">
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#64748b', marginBottom: '12px' }}>
+                Filter Options
+              </label>
+              <div className="filter-options" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '12px',
+                  background: workspaceFilter === 'all' ? 'rgba(102, 126, 234, 0.1)' : '#f8fafc',
+                  border: workspaceFilter === 'all' ? '2px solid #667eea' : '2px solid #e2e8f0',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}>
+                  <input
+                    type="radio"
+                    value="all"
+                    checked={workspaceFilter === 'all'}
+                    onChange={() => setWorkspaceFilter('all')}
+                    style={{ accentColor: '#667eea' }}
+                  />
+                  <span style={{ fontSize: '14px', fontWeight: '500', color: '#1e293b' }}>Save all tabs</span>
+                </label>
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '12px',
+                  background: workspaceFilter === 'exclude_distractions' ? 'rgba(102, 126, 234, 0.1)' : '#f8fafc',
+                  border: workspaceFilter === 'exclude_distractions' ? '2px solid #667eea' : '2px solid #e2e8f0',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}>
+                  <input
+                    type="radio"
+                    value="exclude_distractions"
+                    checked={workspaceFilter === 'exclude_distractions'}
+                    onChange={() => setWorkspaceFilter('exclude_distractions')}
+                    style={{ accentColor: '#667eea' }}
+                  />
+                  <span style={{ fontSize: '14px', fontWeight: '500', color: '#1e293b' }}>Exclude Distractions</span>
+                </label>
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '12px',
+                  background: workspaceFilter === 'work' ? 'rgba(102, 126, 234, 0.1)' : '#f8fafc',
+                  border: workspaceFilter === 'work' ? '2px solid #667eea' : '2px solid #e2e8f0',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}>
+                  <input
+                    type="radio"
+                    value="work"
+                    checked={workspaceFilter === 'work'}
+                    onChange={() => setWorkspaceFilter('work')}
+                    style={{ accentColor: '#667eea' }}
+                  />
+                  <span style={{ fontSize: '14px', fontWeight: '500', color: '#1e293b' }}>Work tabs only</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div className="modal-footer" style={{
+            display: 'flex',
+            gap: '10px',
+            marginTop: '24px'
+          }}>
+            <button
+              onClick={() => setIsWorkspaceModalOpen(false)}
+              className="btn-modal-secondary"
+              style={{
+                flex: 1,
+                padding: '12px',
+                background: '#f1f5f9',
+                color: '#64748b',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: '600',
+                fontSize: '14px',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.background = '#e2e8f0';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.background = '#f1f5f9';
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveWorkspace}
+              className="btn-modal-primary"
+              disabled={isProcessing}
+              style={{
+                flex: 1,
+                padding: '12px',
+                background: isProcessing ? '#94a3b8' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: '600',
+                fontSize: '14px',
+                cursor: isProcessing ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                transition: 'all 0.2s',
+                opacity: isProcessing ? 0.6 : 1
+              }}
+              onMouseEnter={(e) => {
+                if (!isProcessing) {
+                  e.target.style.transform = 'translateY(-2px)';
+                  e.target.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.3)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isProcessing) {
+                  e.target.style.transform = 'translateY(0)';
+                  e.target.style.boxShadow = 'none';
+                }
+              }}
+            >
+              {isProcessing ? <Loader2 className="animate-spin" size={18} /> : 'Save Snapshot'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+);
+
+// ✅ MAIN APP COMPONENT
 function App() {
-  const [activeTab, setActiveTab] = useState('switcher');
   const [user, setUser] = useState(null);
-  const [accounts, setAccounts] = useState([]);
-  const [currentDomain, setCurrentDomain] = useState('');
-  const [focusMode, setFocusMode] = useState(false);
-  
-  // Loading & Auth States
+  const [timeGuard, setTimeGuard] = useState({ wastedAmount: 0, latestNudge: null });
+  const [isTabsOrganized, setIsTabsOrganized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [authMode, setAuthMode] = useState('login'); // 'login' | 'signup' | 'guest'
+  const [currentTab, setCurrentTab] = useState('home');
+  const [authMode, setAuthMode] = useState('login');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState('');
-  
-  // Form States
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
+  const [notes, setNotes] = useState([]);
+  const [newNoteContent, setNewNoteContent] = useState('');
+  const [editingNoteId, setEditingNoteId] = useState(null);
+  const [editContent, setEditContent] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filter, setFilter] = useState('all');
+
+  const [workspaces, setWorkspaces] = useState([]);
+  const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
+  const [workspaceName, setWorkspaceName] = useState('');
+  const [workspaceFilter, setWorkspaceFilter] = useState('all');
+
   useEffect(() => {
     initializeApp();
-    return () => {}; // Cleanup handled inside if needed
+    migrateNotes();
+    loadAllNotes();
+    loadWorkspaces();
+    checkTabOrganizationState();
+
+    const handleStorageChange = (changes, area) => {
+      if (area === 'local') {
+        if (changes.notes) setNotes(changes.notes.newValue || []);
+        if (changes.workspaces) setWorkspaces(changes.workspaces.newValue || []);
+      }
+    };
+    const onTabUpdated = () => checkTabOrganizationState();
+    chrome.tabs.onUpdated.addListener(onTabUpdated);
+    chrome.tabs.onMoved.addListener(onTabUpdated);
+
+    chrome.storage.onChanged.addListener(handleStorageChange);
+    return () => {
+      chrome.storage.onChanged.removeListener(handleStorageChange);
+      chrome.tabs.onUpdated.removeListener(onTabUpdated);
+      chrome.tabs.onMoved.removeListener(onTabUpdated);
+    };
   }, []);
+
+  const checkTabOrganizationState = async () => {
+    const data = await chrome.storage.local.get(['organizedTabs', 'lastTabCheck']);
+    const organizedTabs = data.organizedTabs || {};
+    const lastCheck = data.lastTabCheck || 0;
+    const now = Date.now();
+
+    if (now - lastCheck < 300000) {
+      setIsTabsOrganized(Object.keys(organizedTabs).length > 0);
+      return;
+    }
+
+    const allTabs = await chrome.tabs.query({});
+    const activeTabs = allTabs.filter(t => t.url && !t.url.startsWith('chrome://') && !t.url.startsWith('about:'));
+
+    let organizedCount = 0;
+    activeTabs.forEach(tab => {
+      const key = getContextKey(tab.url, 'domain');
+      if (key && organizedTabs[key]) {
+        organizedCount++;
+      }
+    });
+
+    const organized = organizedCount > 0;
+    setIsTabsOrganized(organized);
+    await chrome.storage.local.set({ organizedTabs: organized ? organizedTabs : {}, lastTabCheck: now });
+  };
+
+  const toggleTabOrganization = async () => {
+    setIsProcessing(true);
+    setError('');
+    try {
+      if (isTabsOrganized) {
+        const res = await sendMessage({ action: 'unorganizeTabs' });
+        if (!res?.success) throw new Error(res?.error || 'Failed to unorganize');
+        setIsTabsOrganized(false);
+      } else {
+        const res = await sendMessage({ action: 'organizeTabs' });
+        if (!res?.success) throw new Error(res?.error || 'Failed to organize');
+        setIsTabsOrganized(true);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const loadAllNotes = async () => {
+    const data = await chrome.storage.local.get('notes');
+    console.log('[App] Loaded notes from storage:', data.notes?.length || 0);
+    setNotes(data.notes || []);
+  };
+
+  const loadWorkspaces = async () => {
+    const data = await chrome.storage.local.get('workspaces');
+    setWorkspaces(data.workspaces || []);
+  };
+
+  const migrateNotes = async () => {
+    try {
+      const allData = await new Promise(resolve => chrome.storage.local.get(null, resolve));
+      const existingNotes = Array.isArray(allData.notes) ? allData.notes : [];
+      const keys = Object.keys(allData);
+      let migratedCount = 0;
+      const newNotes = [...existingNotes];
+
+      for (const key of keys) {
+        if (key.startsWith('guest_note_')) {
+          const urlHash = key.replace('guest_note_', '');
+          let url = '';
+          try { url = atob(urlHash); } catch (e) { console.warn('Hash fail:', urlHash); }
+          const domain = url ? getContextKey(url, 'domain') : null;
+          const content = allData[key];
+          if (!newNotes.some(n => n.content === content && n.domain === domain)) {
+            newNotes.push({
+              id: `migrated_${Date.now()}_${Math.random().toString(36).substr(2, 5)}_${migratedCount++}`,
+              content: content,
+              domain: domain,
+              sourceUrl: url,
+              createdAt: Date.now(),
+              updatedAt: Date.now()
+            });
+          }
+          await chrome.storage.local.remove(key);
+        }
+      }
+
+      if (migratedCount > 0) {
+        await chrome.storage.local.set({ notes: newNotes });
+        setNotes(newNotes);
+        console.log(`✅ [App] Migrated ${migratedCount} notes.`);
+      }
+    } catch (err) {
+      console.error('[App] Migration failed:', err);
+    }
+  };
 
   const initializeApp = async () => {
     setIsLoading(true);
     try {
-      // 1. Check Local Storage for User & Mode
-      const { currentUser, authMode: storedMode } = await new Promise(resolve => 
+      const { currentUser, authMode: storedMode } = await new Promise(resolve =>
         chrome.storage.local.get(['currentUser', 'authMode'], resolve)
       );
 
       if (currentUser) {
         if (currentUser.is_guest) {
-          // Guest mode: Just load from storage
           setUser(currentUser);
           setAuthMode('guest');
         } else {
-          // Logged in: Verify with Supabase
-          const { data: { user: supaUser } } = await supabase.auth.getUser();
-          if (supaUser) {
-            setUser(supaUser);
-            setAuthMode(storedMode || 'google');
-          } else {
-            // Session expired
-            clearAuth();
-          }
+          // const { data: { user: supaUser } } = await supabase.auth.getUser();
+          // if (supaUser) { setUser(supaUser); setAuthMode(storedMode || 'google'); } 
+          // else { clearAuth(); }
+          clearAuth(); // Fallback for demo
         }
       } else {
         clearAuth();
@@ -58,8 +1193,7 @@ function App() {
       clearAuth();
     } finally {
       setIsLoading(false);
-      getCurrentTab();
-      loadAccounts();
+      refreshTimeGuard();
     }
   };
 
@@ -69,143 +1203,180 @@ function App() {
     await chrome.storage.local.remove(['currentUser', 'authMode']);
   };
 
-  // --- Handlers ---
-
   const handleGuestLogin = async () => {
     setIsProcessing(true);
     setError('');
     try {
       const res = await sendMessage({ action: 'startGuestMode' });
-      if (res.success) {
-        setUser(res.user);
-        setAuthMode('guest');
-      } else {
-        throw new Error(res.error);
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setIsProcessing(false);
-    }
+      if (res.success) { setUser(res.user); setAuthMode('guest'); }
+      else { throw new Error(res.error); }
+    } catch (err) { setError(err.message); }
+    finally { setIsProcessing(false); }
   };
 
   const handleEmailAuth = async (isSignup) => {
-    if (!email || !password) {
-      setError('Please enter both email and password');
-      return;
-    }
-    setIsProcessing(true);
-    setError('');
-    
+    if (!email || !password) { setError('Please enter both email and password'); return; }
+    setIsProcessing(true); setError('');
     try {
       const action = isSignup ? 'emailSignup' : 'emailLogin';
       const res = await sendMessage({ action, email, password });
-      
       if (res.success) {
-        setUser(res.user);
-        setAuthMode('email');
-        if (res.needsConfirmation) {
-          alert('Please check your email to confirm your account before logging in.');
-          clearAuth();
-        }
-      } else {
-        throw new Error(res.error);
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setIsProcessing(false);
-    }
+        setUser(res.user); setAuthMode('email');
+        if (res.needsConfirmation) { alert('Please check your email to confirm your account before logging in.'); clearAuth(); }
+      } else { throw new Error(res.error); }
+    } catch (err) { setError(err.message); }
+    finally { setIsProcessing(false); }
   };
 
   const handleGoogleLogin = async () => {
-    setIsProcessing(true);
-    setError('');
+    setIsProcessing(true); setError('');
     try {
       const res = await sendMessage({ action: 'googleLogin' });
-      if (res.success) {
-        setUser(res.user);
-        setAuthMode('google');
-      } else {
-        throw new Error(res.error);
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setIsProcessing(false);
-    }
+      if (res.success) { setUser(res.user); setAuthMode('google'); }
+      else { throw new Error(res.error); }
+    } catch (err) { setError(err.message); }
+    finally { setIsProcessing(false); }
   };
 
   const handleLogout = async () => {
-    if (!user?.is_guest) {
-      await supabase.auth.signOut();
-    }
+    // if (!user?.is_guest) await supabase.auth.signOut();
     await chrome.storage.local.remove(['currentUser', 'authMode']);
-    setUser(null);
-    setAuthMode('login');
-    window.location.reload();
+    setUser(null); setAuthMode('login'); window.location.reload();
   };
 
-  // Helper for messaging
-  const sendMessage = (msg) => {
-    return new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage(msg, (res) => {
-        if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
-        else resolve(res);
-      });
+  const sendMessage = (msg) => new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(msg, (res) => {
+      if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+      else resolve(res);
+    });
+  });
+
+  const organizeTabs = async () => {
+    const res = await sendMessage({ action: 'organizeTabs' });
+    if (!res?.success) throw new Error(res?.error || 'Failed to organize tabs');
+  };
+
+  const unorganizeTabs = async () => {
+    const res = await sendMessage({ action: 'unorganizeTabs' });
+    if (!res?.success) throw new Error(res?.error || 'Failed to unorganize tabs');
+    alert(`Ungrouped ${res.ungroupedCount || 0} tabs.`);
+  };
+
+  const refreshTimeGuard = async () => {
+    try {
+      const res = await sendMessage({ action: 'getTimeGuardSummary' });
+      if (res?.success) setTimeGuard({ wastedAmount: res.wastedAmount || 0, latestNudge: res.latestNudge || null });
+    } catch (err) { console.warn('Time guard refresh failed:', err); }
+  };
+
+  const handleAction = async (fn) => {
+    setIsProcessing(true); setError('');
+    try { await fn(); await refreshTimeGuard(); }
+    catch (err) { setError(err.message); }
+    finally { setIsProcessing(false); }
+  };
+
+  // ✅ Notes Handlers
+  const handleAddGeneralNote = async () => {
+    if (!newNoteContent.trim()) return;
+    const newNote = {
+      id: `note_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      content: newNoteContent.trim(),
+      domain: null,
+      sourceUrl: null,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    const updatedNotes = [newNote, ...notes];
+    await chrome.storage.local.set({ notes: updatedNotes });
+    setNotes(updatedNotes);
+    setNewNoteContent('');
+    if (filter === 'website') setFilter('general');
+  };
+
+  const deleteNote = async (id) => {
+    if (!confirm('Delete this note?')) return;
+    const updatedNotes = notes.filter(n => n.id !== id);
+    await chrome.storage.local.set({ notes: updatedNotes });
+  };
+
+  const startEditing = (note) => { setEditingNoteId(note.id); setEditContent(note.content); };
+
+  const saveEdit = async (id) => {
+    const updatedNotes = notes.map(n => n.id === id ? { ...n, content: editContent, updatedAt: Date.now() } : n);
+    await chrome.storage.local.set({ notes: updatedNotes });
+    setEditingNoteId(null);
+  };
+
+  // ✅ Workspace Handlers
+  const handleSaveWorkspace = async () => {
+    if (!workspaceName.trim()) { alert('Please enter a workspace name'); return; }
+    await handleAction(async () => {
+      const res = await sendMessage({ action: 'saveWorkspace', name: workspaceName, mode: workspaceFilter });
+      if (res.success) { setIsWorkspaceModalOpen(false); setWorkspaceName(''); }
     });
   };
 
-  const getCurrentTab = async () => {
-    try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (tab?.url) setCurrentDomain(new URL(tab.url).hostname);
-    } catch (e) { console.warn(e); }
+  const handleRestoreWorkspace = async (id) => {
+    await handleAction(async () => {
+      const res = await sendMessage({ action: 'restoreWorkspace', id });
+      if (res.success) alert(`Restored ${res.restored} tabs.`);
+    });
   };
 
-  const loadAccounts = async () => {
-    const result = await new Promise(resolve => chrome.storage.local.get(null, resolve));
-    const keys = Object.keys(result).filter(k => k.startsWith('account_'));
-    setAccounts(keys.map(k => ({ key: k, ...result[k] })));
+  const handleDeleteWorkspace = async (id) => {
+    if (!confirm('Delete this workspace?')) return;
+    await sendMessage({ action: 'deleteWorkspace', id });
   };
 
-  const saveCurrentSession = async () => {
-    const name = prompt('Enter account name (e.g., "Work"):');
-    if (name && currentDomain) {
-      chrome.runtime.sendMessage({ action: 'saveSession', name, domain: currentDomain });
-      setTimeout(loadAccounts, 500);
+  const renderTabContent = () => {
+    switch (currentTab) {
+      case 'notes':
+        return (
+          <NotesTab
+            notes={notes}
+            newNoteContent={newNoteContent}
+            setNewNoteContent={setNewNoteContent}
+            filter={filter}
+            setFilter={setFilter}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            editingNoteId={editingNoteId}
+            setEditingNoteId={setEditingNoteId}
+            editContent={editContent}
+            setEditContent={setEditContent}
+            onAddGeneralNote={handleAddGeneralNote}
+            onDeleteNote={deleteNote}
+            onStartEditing={startEditing}
+            onSaveEdit={saveEdit}
+            isProcessing={isProcessing}
+          />
+        );
+      case 'workspaces':
+        return (
+          <WorkspacesTab
+            workspaces={workspaces}
+            isWorkspaceModalOpen={isWorkspaceModalOpen}
+            setIsWorkspaceModalOpen={setIsWorkspaceModalOpen}
+            workspaceName={workspaceName}
+            setWorkspaceName={setWorkspaceName}
+            workspaceFilter={workspaceFilter}
+            setWorkspaceFilter={setWorkspaceFilter}
+            isProcessing={isProcessing}
+            handleSaveWorkspace={handleSaveWorkspace}
+            handleRestoreWorkspace={handleRestoreWorkspace}
+            handleDeleteWorkspace={handleDeleteWorkspace}
+          />
+        );
+      default:
+        return <HomeTab error={error} isTabsOrganized={isTabsOrganized} toggleTabOrganization={toggleTabOrganization} isProcessing={isProcessing} timeGuard={timeGuard} setCurrentTab={setCurrentTab} />;
     }
   };
-
-  const switchAccount = async (account) => {
-    const name = account.key.split('_')[1];
-    chrome.runtime.sendMessage({ action: 'loadSession', name, domain: currentDomain }, (res) => {
-      if (res?.success) chrome.tabs.reload();
-      else alert('Failed to switch');
-    });
-  };
-
-  const deleteAccount = async (key) => {
-    await new Promise(resolve => chrome.storage.local.remove([key], resolve));
-    loadAccounts();
-  };
-
-  const toggleFocusMode = async () => {
-    const newState = !focusMode;
-    setFocusMode(newState);
-    chrome.runtime.sendMessage({ action: 'toggleFocusMode', enabled: newState });
-  };
-
-  const organizeTabs = (mode) => {
-    chrome.runtime.sendMessage({ action: 'organizeTabs', mode });
-  };
-
-  // --- Render Functions ---
 
   if (isLoading) {
     return (
       <div className="popup-container loading-screen">
-        <Loader2 className="animate-spin" size={40} color="#667eea" />
+        <Loader2 className="animate-spin" size={40} color="#white" />
         <p>Loading Tab-Van...</p>
       </div>
     );
@@ -217,142 +1388,72 @@ function App() {
         <div className="login-screen">
           <h1>🌲 Tab-Van</h1>
           <p>Your Workspace Manager</p>
-          
           {error && <div className="error-msg">{error}</div>}
-
           {authMode === 'guest' ? (
-             <div className="guest-info">
-               <p>Entering Guest Mode...</p>
-               <Loader2 className="animate-spin" size={24} />
-             </div>
+            <div className="guest-info">
+              <p>Entering Guest Mode...</p>
+              <Loader2 className="animate-spin" size={24} />
+            </div>
           ) : (
-            <>
-              {/* Email Form */}
+            <div style={{ width: '100%' }}>
               <div className="auth-form">
-                <input 
-                  type="email" 
-                  placeholder="Email" 
-                  value={email} 
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={isProcessing}
-                  className="input-field"
-                />
+                <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={isProcessing} className="input-field" />
                 <div className="password-input-wrapper">
-                  <input 
-                    type={showPassword ? "text" : "password"} 
-                    placeholder="Password" 
-                    value={password} 
-                    onChange={(e) => setPassword(e.target.value)}
-                    disabled={isProcessing}
-                    className="input-field"
-                  />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="eye-btn">
-                    {showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}
-                  </button>
+                  <input type={showPassword ? "text" : "password"} placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={isProcessing} className="input-field" />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="eye-btn">{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button>
                 </div>
-                
-                <button 
-                  onClick={() => handleEmailAuth(authMode === 'signup')} 
-                  className="btn-primary"
-                  disabled={isProcessing}
-                >
-                  {isProcessing ? <Loader2 className="animate-spin" size={18}/> : 
-                   authMode === 'signup' ? <UserPlus size={18}/> : <Mail size={18}/>}
+                <button onClick={() => handleEmailAuth(authMode === 'signup')} className="btn-primary" disabled={isProcessing}>
+                  {isProcessing ? <Loader2 className="animate-spin" size={18} /> : authMode === 'signup' ? <UserPlus size={18} /> : <Mail size={18} />}
                   {authMode === 'signup' ? 'Sign Up' : 'Log In'}
                 </button>
               </div>
-
               <div className="divider">OR</div>
-
-              {/* Google Button */}
               <button onClick={handleGoogleLogin} className="btn-google" disabled={isProcessing}>
-                {isProcessing ? <Loader2 className="animate-spin" size={18}/> : <Users size={18}/>}
-                Sign in with Google
+                {isProcessing ? <Loader2 className="animate-spin" size={18} /> : <Users size={18} />} Sign in with Google
               </button>
-
-              {/* Guest Button */}
               <button onClick={handleGuestLogin} className="btn-guest" disabled={isProcessing}>
-                <DoorOpen size={18} />
-                Continue as Guest
+                <DoorOpen size={18} /> Continue as Guest
               </button>
-
-              {/* Toggle Mode */}
               <p className="toggle-auth">
                 {authMode === 'login' ? "Don't have an account? " : "Already have an account? "}
                 <button onClick={() => { setAuthMode(authMode === 'login' ? 'signup' : 'login'); setError(''); }}>
                   {authMode === 'login' ? 'Sign Up' : 'Log In'}
                 </button>
               </p>
-            </>
+            </div>
           )}
         </div>
       </div>
     );
   }
 
-  // Main App Dashboard
   return (
     <div className="popup-container">
-      <div className="header">
-        <h1>🌲 Tab-Van</h1>
+      <div className="header" style={{ paddingBottom: currentTab === 'home' ? 16 : 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <h1>🌲 Tab-Van</h1>
+        </div>
         <div className="user-info">
-          <span style={{fontSize: '11px', opacity: 0.8, marginRight: '8px'}}>
+          <span style={{ fontSize: '11px', opacity: 0.8, marginRight: '8px' }}>
             {user.is_guest ? 'Guest Mode' : user.email?.split('@')[0]}
           </span>
           <button onClick={handleLogout} className="logout-btn"><LogOut size={16} /></button>
         </div>
       </div>
 
-      <div className="tabs">
-        <button className={`tab-btn ${activeTab === 'switcher' ? 'active' : ''}`} onClick={() => setActiveTab('switcher')}>
-          <Users size={16} /> Accounts
+      <div className="nav-tabs">
+        <button className={`nav-tab ${currentTab === 'home' ? 'active' : ''}`} onClick={() => setCurrentTab('home')}>
+          <Home size={18} /> Home
         </button>
-        <button className={`tab-btn ${activeTab === 'focus' ? 'active' : ''}`} onClick={() => setActiveTab('focus')}>
-          <Focus size={16} /> Focus
+        <button className={`nav-tab ${currentTab === 'notes' ? 'active' : ''}`} onClick={() => setCurrentTab('notes')}>
+          <LayoutDashboard size={18} /> Notes
+        </button>
+        <button className={`nav-tab ${currentTab === 'workspaces' ? 'active' : ''}`} onClick={() => setCurrentTab('workspaces')}>
+          <FolderOpen size={18} /> Workspaces
         </button>
       </div>
 
-      {activeTab === 'switcher' && (
-        <div className="content">
-          <div className="domain-info">
-            <span className="domain">{currentDomain}</span>
-            <button onClick={saveCurrentSession} className="save-btn"><Plus size={16} /> Save</button>
-          </div>
-          <div className="accounts-list">
-            {accounts.filter(acc => acc.key.includes(currentDomain)).map((account) => (
-              <div key={account.key} className="account-card">
-                <div className="account-info">
-                  <Users size={20} />
-                  <span>{account.name}</span>
-                </div>
-                <div className="account-actions">
-                  <button onClick={() => switchAccount(account)} className="switch-btn"><RefreshCw size={16} /></button>
-                  <button onClick={() => deleteAccount(account.key)} className="delete-btn"><Trash2 size={16} /></button>
-                </div>
-              </div>
-            ))}
-            {accounts.filter(acc => acc.key.includes(currentDomain)).length === 0 && (
-              <p className="empty-state">No saved accounts</p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'focus' && (
-        <div className="content">
-          <div className="focus-mode-card">
-            <div className="focus-header"><Shield size={24} /><h3>Focus Mode</h3></div>
-            <p>Block distractions</p>
-            <button onClick={toggleFocusMode} className={`focus-toggle ${focusMode ? 'active' : ''}`}>
-              {focusMode ? 'ON' : 'OFF'}
-            </button>
-          </div>
-          <div className="organize-section">
-            <button onClick={() => organizeTabs('work')} className="organize-btn">💼 Group Work</button>
-            <button onClick={() => organizeTabs('distractions')} className="organize-btn">🎮 Group Fun</button>
-          </div>
-        </div>
-      )}
+      {renderTabContent()}
     </div>
   );
 }

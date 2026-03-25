@@ -8,6 +8,9 @@ export default defineConfig({
     react(),
     crx({ manifest }),
   ],
+  optimizeDeps: {
+    include: ['@supabase/supabase-js', 'lucide-react'],
+  },
   server: {
     port: 5173,
     strictPort: true,

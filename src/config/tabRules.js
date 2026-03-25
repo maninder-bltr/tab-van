@@ -23,6 +23,8 @@ export const DEFAULT_TAB_RULES = {
             'slack.com',
             'microsoft.com',
             'openai.com',
+            'gemini.google.com',
+            'chatgpt.com',
             'qwen.ai',
             'deepseek.com',
             'anthropic.com',
@@ -46,7 +48,8 @@ export const DEFAULT_TAB_RULES = {
             'hotstar.com',
             'primevideo',
             'mxplayer',
-            'twitch.tv'
+            'twitch.tv',
+            'linkedin.com/feed'
         ]
     },
     learning: {
