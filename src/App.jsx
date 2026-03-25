@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useRef, memo } from 'react';
 import {
-  Mail, UserPlus, Users, LogOut, Loader2, Eye, EyeOff, DoorOpen, Sparkles, Save, RotateCcw, Timer,
-  LayoutDashboard, Trash2, Edit3, Check, Search, X, PlusCircle, Globe, FileText, Home, FolderOpen, Plus, CheckCircle
+  Mail, UserPlus, Users, LogOut, Loader2, Eye, EyeOff, DoorOpen, Sparkles, RotateCcw, Timer,
+  LayoutDashboard, Trash2, Edit3, Check, Search, X, Globe, FileText, Home, FolderOpen, Plus, CheckCircle,
+  BarChart3,
+  TrendingUp,
+  Calendar
 } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import './App.css';
 import { getContextKey } from './utils/domainUtils';
 
 // ✅ HomeTab Component - Fixed Spacing
-const HomeTab = ({ error, isTabsOrganized, toggleTabOrganization, isProcessing, timeGuard, setCurrentTab }) => (
+const HomeTab = ({ error, isTabsOrganized, toggleTabOrganization, isProcessing, timeGuard, setCurrentTab, loadTimeGuardAnalytics, showTimeGuardAnalytics, setShowTimeGuardAnalytics, timeGuardData }) => (
   <div className="content" style={{ padding: '20px', paddingBottom: '20px' }}>
     {error && <div className="error-msg" style={{ color: '#991b1b', background: '#fee2e2', padding: '12px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' }}>{error}</div>}
 
@@ -164,27 +167,58 @@ const HomeTab = ({ error, isTabsOrganized, toggleTabOrganization, isProcessing, 
         border: '2px solid #e2e8f0',
         borderRadius: '12px',
         padding: '20px',
-        textAlign: 'center',
         boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
       }}>
         <h4 style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          gap: '8px',
+          justifyContent: 'space-between',
           margin: '0 0 16px 0',
           fontSize: '16px',
           fontWeight: '700',
           color: '#1e293b'
         }}>
-          <Timer size={20} color="#667eea" strokeWidth={2} />
-          Website Time Guard
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Timer size={20} color="#667eea" strokeWidth={2} />
+            Website Time Guard
+          </div>
+          <button
+            onClick={loadTimeGuardAnalytics}
+            style={{
+              background: 'rgba(102, 126, 234, 0.1)',
+              border: 'none',
+              color: '#667eea',
+              padding: '6px 10px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '12px',
+              fontWeight: '600',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = 'rgba(102, 126, 234, 0.2)';
+              e.target.style.transform = 'scale(1.05)';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = 'rgba(102, 126, 234, 0.1)';
+              e.target.style.transform = 'scale(1)';
+            }}
+            title="View detailed analytics"
+          >
+            <BarChart3 size={16} strokeWidth={2.5} />
+            Analytics
+          </button>
         </h4>
+
         <div style={{
           background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
           padding: '16px',
           borderRadius: '10px',
-          marginBottom: '12px'
+          marginBottom: '12px',
+          textAlign: 'center'
         }}>
           <p style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#92400e', fontWeight: '600' }}>
             ⏱ 1 second = ₹1 lost
@@ -193,16 +227,341 @@ const HomeTab = ({ error, isTabsOrganized, toggleTabOrganization, isProcessing, 
             You spent <strong>{timeGuard.timeSpent || 0}s</strong> → <strong>₹{timeGuard.wastedAmount || 0}</strong> lost 💸
           </p>
         </div>
+
         {timeGuard.latestNudge ? (
-          <p style={{ margin: 0, fontStyle: 'italic', color: '#64748b', fontSize: '13px' }}>
+          <p style={{ margin: 0, fontStyle: 'italic', color: '#64748b', fontSize: '13px', textAlign: 'center' }}>
             "{timeGuard.latestNudge.message}"
           </p>
         ) : (
-          <p style={{ margin: 0, color: '#94a3b8', fontSize: '13px', fontWeight: '500' }}>
+          <p style={{ margin: 0, color: '#94a3b8', fontSize: '13px', fontWeight: '500', textAlign: 'center' }}>
             Stay intentional. Every second counts.
           </p>
         )}
       </div>
+      {/* Time Guard Analytics Modal */}
+      {showTimeGuardAnalytics && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px'
+          }}
+          onClick={() => setShowTimeGuardAnalytics(false)}
+        >
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '16px',
+              width: '100%',
+              maxWidth: '600px',
+              maxHeight: '80vh',
+              overflow: 'auto',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+              animation: 'slideIn 0.3s ease-out'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              padding: '20px 24px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              borderRadius: '16px 16px 0 0'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'white' }}>
+                <BarChart3 size={24} strokeWidth={2.5} />
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700' }}>Time Guard Analytics</h3>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', opacity: 0.9 }}>Track your distraction time</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowTimeGuardAnalytics(false)}
+                style={{
+                  background: 'rgba(255,255,255,0.2)',
+                  border: 'none',
+                  color: 'white',
+                  padding: '8px',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = 'rgba(255,255,255,0.3)';
+                  e.target.style.transform = 'rotate(90deg)';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = 'rgba(255,255,255,0.2)';
+                  e.target.style.transform = 'rotate(0deg)';
+                }}
+              >
+                <X size={20} strokeWidth={2} />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div style={{ padding: '24px' }}>
+              {timeGuardData.length === 0 ? (
+                <div style={{
+                  textAlign: 'center',
+                  padding: '40px 20px',
+                  background: '#f8fafc',
+                  borderRadius: '12px',
+                  border: '2px dashed #e2e8f0'
+                }}>
+                  <BarChart3 size={48} style={{ opacity: 0.2, marginBottom: 16, color: '#667eea' }} />
+                  <p style={{ margin: 0, fontSize: '15px', color: '#64748b', fontWeight: '500' }}>
+                    No analytics data yet
+                  </p>
+                  <p style={{ margin: '8px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>
+                    Start browsing distraction sites to see your usage patterns
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {/* Summary Cards */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, 1fr)',
+                    gap: '12px'
+                  }}>
+                    <div style={{
+                      background: 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)',
+                      padding: '16px',
+                      borderRadius: '10px',
+                      textAlign: 'center'
+                    }}>
+                      <div style={{ fontSize: '12px', color: '#991b1b', fontWeight: '600', marginBottom: '4px' }}>
+                        Total Time
+                      </div>
+                      <div style={{ fontSize: '20px', fontWeight: '700', color: '#7f1d1d' }}>
+                        {timeGuardData.reduce((acc, day) => acc + (day.totalSeconds || 0), 0)}s
+                      </div>
+                    </div>
+
+                    <div style={{
+                      background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                      padding: '16px',
+                      borderRadius: '10px',
+                      textAlign: 'center'
+                    }}>
+                      <div style={{ fontSize: '12px', color: '#92400e', fontWeight: '600', marginBottom: '4px' }}>
+                        Money Lost
+                      </div>
+                      <div style={{ fontSize: '20px', fontWeight: '700', color: '#78350f' }}>
+                        ₹{timeGuardData.reduce((acc, day) => acc + (day.totalSeconds || 0), 0)}
+                      </div>
+                    </div>
+
+                    <div style={{
+                      background: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)',
+                      padding: '16px',
+                      borderRadius: '10px',
+                      textAlign: 'center'
+                    }}>
+                      <div style={{ fontSize: '12px', color: '#065f46', fontWeight: '600', marginBottom: '4px' }}>
+                        Days Tracked
+                      </div>
+                      <div style={{ fontSize: '20px', fontWeight: '700', color: '#064e3b' }}>
+                        {timeGuardData.length}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Daily Breakdown */}
+                  <div>
+                    <h4 style={{
+                      margin: '0 0 12px 0',
+                      fontSize: '14px',
+                      fontWeight: '700',
+                      color: '#1e293b',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}>
+                      <Calendar size={16} color="#667eea" />
+                      Daily Breakdown
+                    </h4>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {timeGuardData.slice(0, 7).map((day, index) => (
+                        <div key={index} style={{
+                          background: '#f8fafc',
+                          border: '2px solid #e2e8f0',
+                          borderRadius: '10px',
+                          padding: '16px',
+                          transition: 'all 0.2s'
+                        }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = '#667eea';
+                            e.currentTarget.style.background = '#f1f5f9';
+                          }}>
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: '12px'
+                          }}>
+                            <div style={{
+                              fontSize: '14px',
+                              fontWeight: '700',
+                              color: '#1e293b',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px'
+                            }}>
+                              <Calendar size={14} color="#667eea" />
+                              {day.date || `Day ${index + 1}`}
+                            </div>
+                            <div style={{
+                              fontSize: '13px',
+                              fontWeight: '700',
+                              color: '#ef4444'
+                            }}>
+                              {day.totalSeconds || 0}s → ₹{day.totalSeconds || 0}
+                            </div>
+                          </div>
+
+                          {/* Site Breakdown */}
+                          {day.sites && day.sites.length > 0 && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              {day.sites.map((site, siteIndex) => (
+                                <div key={siteIndex} style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  padding: '8px 12px',
+                                  background: 'white',
+                                  borderRadius: '6px',
+                                  border: '1px solid #e2e8f0'
+                                }}>
+                                  <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    fontSize: '13px',
+                                    fontWeight: '500',
+                                    color: '#475569',
+                                    flex: 1
+                                  }}>
+                                    <Globe size={14} color="#667eea" />
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      {site.domain}
+                                    </span>
+                                  </div>
+                                  <div style={{
+                                    fontSize: '12px',
+                                    fontWeight: '600',
+                                    color: '#64748b',
+                                    minWidth: '60px',
+                                    textAlign: 'right'
+                                  }}>
+                                    {site.seconds}s
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Visual Bar Chart */}
+                  <div>
+                    <h4 style={{
+                      margin: '0 0 12px 0',
+                      fontSize: '14px',
+                      fontWeight: '700',
+                      color: '#1e293b',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}>
+                      <TrendingUp size={16} color="#667eea" />
+                      Time Spent (Last 7 Days)
+                    </h4>
+
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'flex-end',
+                      gap: '8px',
+                      height: '150px',
+                      padding: '16px',
+                      background: '#f8fafc',
+                      borderRadius: '10px',
+                      border: '2px solid #e2e8f0'
+                    }}>
+                      {timeGuardData.slice(0, 7).map((day, index) => {
+                        const maxSeconds = Math.max(...timeGuardData.slice(0, 7).map(d => d.totalSeconds || 0));
+                        const height = maxSeconds > 0 ? ((day.totalSeconds || 0) / maxSeconds) * 100 : 0;
+
+                        return (
+                          <div
+                            key={index}
+                            style={{
+                              flex: 1,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              gap: '8px'
+                            }}
+                          >
+                            <div style={{
+                              width: '100%',
+                              height: `${Math.max(height, 5)}%`,
+                              background: `linear-gradient(180deg, #667eea 0%, #764ba2 100%)`,
+                              borderRadius: '6px 6px 0 0',
+                              transition: 'all 0.3s',
+                              position: 'relative'
+                            }}>
+                              <div style={{
+                                position: 'absolute',
+                                top: '-24px',
+                                left: '50%',
+                                transform: 'translateX(-50%)',
+                                fontSize: '11px',
+                                fontWeight: '700',
+                                color: '#667eea',
+                                whiteSpace: 'nowrap'
+                              }}>
+                                {day.totalSeconds || 0}s
+                              </div>
+                            </div>
+                            <div style={{
+                              fontSize: '10px',
+                              color: '#94a3b8',
+                              fontWeight: '500',
+                              textAlign: 'center',
+                              transform: 'rotate(-45deg)',
+                              transformOrigin: 'center',
+                              marginTop: '20px'
+                            }}>
+                              {new Date(day.date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   </div>
 );
@@ -1046,6 +1405,9 @@ function App() {
   const [workspaceName, setWorkspaceName] = useState('');
   const [workspaceFilter, setWorkspaceFilter] = useState('all');
 
+  const [showTimeGuardAnalytics, setShowTimeGuardAnalytics] = useState(false);
+  const [timeGuardData, setTimeGuardData] = useState([]);
+
   useEffect(() => {
     initializeApp();
     migrateNotes();
@@ -1251,15 +1613,15 @@ function App() {
     });
   });
 
-  const organizeTabs = async () => {
-    const res = await sendMessage({ action: 'organizeTabs' });
-    if (!res?.success) throw new Error(res?.error || 'Failed to organize tabs');
-  };
-
-  const unorganizeTabs = async () => {
-    const res = await sendMessage({ action: 'unorganizeTabs' });
-    if (!res?.success) throw new Error(res?.error || 'Failed to unorganize tabs');
-    alert(`Ungrouped ${res.ungroupedCount || 0} tabs.`);
+  // Function to load time guard analytics
+  const loadTimeGuardAnalytics = async () => {
+    try {
+      const data = await chrome.storage.local.get('timeGuardHistory');
+      setTimeGuardData(data.timeGuardHistory || []);
+      setShowTimeGuardAnalytics(true);
+    } catch (err) {
+      console.error('Failed to load time guard data:', err);
+    }
   };
 
   const refreshTimeGuard = async () => {
@@ -1369,7 +1731,20 @@ function App() {
           />
         );
       default:
-        return <HomeTab error={error} isTabsOrganized={isTabsOrganized} toggleTabOrganization={toggleTabOrganization} isProcessing={isProcessing} timeGuard={timeGuard} setCurrentTab={setCurrentTab} />;
+        return (
+          <HomeTab
+            error={error}
+            isTabsOrganized={isTabsOrganized}
+            toggleTabOrganization={toggleTabOrganization}
+            isProcessing={isProcessing}
+            timeGuard={timeGuard}
+            setCurrentTab={setCurrentTab}
+            loadTimeGuardAnalytics={loadTimeGuardAnalytics}
+            showTimeGuardAnalytics={showTimeGuardAnalytics}
+            setShowTimeGuardAnalytics={setShowTimeGuardAnalytics}
+            timeGuardData={timeGuardData}
+          />
+        );
     }
   };
 
