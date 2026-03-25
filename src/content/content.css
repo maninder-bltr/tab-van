@@ -17,7 +17,7 @@
 }
 
 /* Prevent widget from interfering with page layout */
-#tab-van-widget-root {
+#tab-van-dashboard-root {
     pointer-events: auto;
     position: fixed;
     z-index: 2147483647;
