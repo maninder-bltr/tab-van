@@ -58,10 +58,10 @@ body {
 
 
 .content {
-  padding: 16px;
+  padding: 20px;
   background: rgba(255, 255, 255, 0.95);
   color: #1e293b;
-  min-height: 320px;
+  min-height: 400px;
 }
 
 
@@ -254,9 +254,10 @@ body {
 /* --- Dashboard Styles --- */
 
 .dashboard-container {
-  padding: 0;
-  background: #f8fafc;
-  min-height: 380px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.95);
+  color: #1e293b;
+  min-height: 400px;
 }
 
 
@@ -346,9 +347,9 @@ body {
 
 /* --- Workspace Styles --- */
 .workspaces-container {
-  padding: 16px;
+  padding: 20px;
   background: rgba(255, 255, 255, 0.95);
-  min-height: 380px;
+  min-height: 400px;
   color: #1e293b;
 }
 

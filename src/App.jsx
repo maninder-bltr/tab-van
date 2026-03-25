@@ -4,15 +4,17 @@ import {
   LayoutDashboard, Trash2, Edit3, Check, Search, X, Globe, FileText, Home, FolderOpen, Plus, CheckCircle,
   BarChart3,
   TrendingUp,
-  Calendar
+  Calendar,
+  Cloud
 } from 'lucide-react';
-import { supabase } from './lib/supabase';
 import './App.css';
 import { getContextKey } from './utils/domainUtils';
+import { StorageService } from './utils/storage';
+import { supabase } from './lib/supabase';
 
 // ✅ HomeTab Component - Fixed Spacing
 const HomeTab = ({ error, isTabsOrganized, toggleTabOrganization, isProcessing, timeGuard, setCurrentTab, loadTimeGuardAnalytics, showTimeGuardAnalytics, setShowTimeGuardAnalytics, timeGuardData }) => (
-  <div className="content" style={{ padding: '20px', paddingBottom: '20px' }}>
+  <div className="content">
     {error && <div className="error-msg" style={{ color: '#991b1b', background: '#fee2e2', padding: '12px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' }}>{error}</div>}
 
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -604,7 +606,7 @@ const NotesTab = memo(({
   };
 
   return (
-    <div className="dashboard-container" style={{ padding: '20px', paddingBottom: '20px' }}>
+    <div className="dashboard-container">
       {/* Add General Note Section */}
       <div style={{
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -992,7 +994,7 @@ const NotesTab = memo(({
 
 // ✅ WorkspacesTab Component - Fixed Spacing & Bottom Line
 const WorkspacesTab = ({ workspaces, isWorkspaceModalOpen, setIsWorkspaceModalOpen, workspaceName, setWorkspaceName, workspaceFilter, setWorkspaceFilter, isProcessing, handleSaveWorkspace, handleRestoreWorkspace, handleDeleteWorkspace }) => (
-  <div className="workspaces-container" style={{ padding: '20px', paddingBottom: '20px' }}>
+  <div className="workspaces-container">
     <div style={{
       display: 'flex',
       justifyContent: 'space-between',
@@ -1404,7 +1406,10 @@ function App() {
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
   const [workspaceName, setWorkspaceName] = useState('');
   const [workspaceFilter, setWorkspaceFilter] = useState('all');
-
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [syncStatus, setSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'success' | 'error'
+  const [syncMessage, setSyncMessage] = useState('');
+  const [hasLocalData, setHasLocalData] = useState(false);
   const [showTimeGuardAnalytics, setShowTimeGuardAnalytics] = useState(false);
   const [timeGuardData, setTimeGuardData] = useState([]);
 
@@ -1481,14 +1486,24 @@ function App() {
   };
 
   const loadAllNotes = async () => {
-    const data = await chrome.storage.local.get('notes');
-    console.log('[App] Loaded notes from storage:', data.notes?.length || 0);
-    setNotes(data.notes || []);
+    try {
+      const notes = await StorageService.loadNotes();
+      console.log('[App] Loaded notes:', notes.length);
+      setNotes(notes);
+    } catch (err) {
+      console.error('Failed to load notes:', err);
+      setNotes([]);
+    }
   };
 
   const loadWorkspaces = async () => {
-    const data = await chrome.storage.local.get('workspaces');
-    setWorkspaces(data.workspaces || []);
+    try {
+      const workspaces = await StorageService.loadWorkspaces();
+      setWorkspaces(workspaces);
+    } catch (err) {
+      console.error('Failed to load workspaces:', err);
+      setWorkspaces([]);
+    }
   };
 
   const migrateNotes = async () => {
@@ -1542,10 +1557,15 @@ function App() {
           setUser(currentUser);
           setAuthMode('guest');
         } else {
-          // const { data: { user: supaUser } } = await supabase.auth.getUser();
-          // if (supaUser) { setUser(supaUser); setAuthMode(storedMode || 'google'); } 
-          // else { clearAuth(); }
-          clearAuth(); // Fallback for demo
+          const { data: { user: supaUser } } = await supabase.auth.getUser();
+          if (supaUser) {
+            setUser(supaUser);
+            setAuthMode(storedMode || 'google');
+            // Check for local data to sync
+            await checkForLocalData();
+          } else {
+            clearAuth();
+          }
         }
       } else {
         clearAuth();
@@ -1650,33 +1670,165 @@ function App() {
       updatedAt: Date.now()
     };
     const updatedNotes = [newNote, ...notes];
-    await chrome.storage.local.set({ notes: updatedNotes });
-    setNotes(updatedNotes);
-    setNewNoteContent('');
-    if (filter === 'website') setFilter('general');
+    try {
+      await StorageService.saveNotes(updatedNotes);
+      setNotes(updatedNotes);
+      setNewNoteContent('');
+      if (filter === 'website') setFilter('general');
+    } catch (err) {
+      setError('Failed to save note: ' + err.message);
+    }
   };
 
   const deleteNote = async (id) => {
     if (!confirm('Delete this note?')) return;
     const updatedNotes = notes.filter(n => n.id !== id);
-    await chrome.storage.local.set({ notes: updatedNotes });
+    try {
+      await StorageService.saveNotes(updatedNotes);
+    } catch (err) {
+      setError('Failed to delete note: ' + err.message);
+    }
   };
 
   const startEditing = (note) => { setEditingNoteId(note.id); setEditContent(note.content); };
 
   const saveEdit = async (id) => {
-    const updatedNotes = notes.map(n => n.id === id ? { ...n, content: editContent, updatedAt: Date.now() } : n);
-    await chrome.storage.local.set({ notes: updatedNotes });
-    setEditingNoteId(null);
+    const updatedNotes = notes.map(n =>
+      n.id === id ? { ...n, content: editContent, updatedAt: Date.now() } : n
+    );
+    try {
+      await StorageService.saveNotes(updatedNotes);
+      setEditingNoteId(null);
+    } catch (err) {
+      setError('Failed to save edit: ' + err.message);
+    }
+  };
+
+  // Add sync function
+  const handleSyncToCloud = async () => {
+    setSyncStatus('syncing');
+    try {
+      const { syncedCount, errors } = await StorageService.syncLocalToCloud();
+
+      if (errors.length > 0) {
+        setSyncStatus('error');
+        setSyncMessage(`Synced ${syncedCount} items, but some errors occurred`);
+      } else {
+        setSyncStatus('success');
+        setSyncMessage(`Successfully synced ${syncedCount} items to cloud!`);
+
+        // Optional: Clear local data after successful sync
+        // await StorageService.clearLocalData();
+
+        setTimeout(() => {
+          setShowSyncModal(false);
+          setSyncStatus('idle');
+          setSyncMessage('');
+        }, 2000);
+      }
+    } catch (err) {
+      setSyncStatus('error');
+      setSyncMessage(err.message);
+    }
+  };
+
+  // Check for local data on login
+  const checkForLocalData = async () => {
+    const data = await new Promise((resolve) => {
+      chrome.storage.local.get(['notes', 'workspaces', 'timeGuardHistory'], resolve);
+    });
+
+    const hasData =
+      (data.notes && data.notes.length > 0) ||
+      (data.workspaces && data.workspaces.length > 0) ||
+      (data.timeGuardHistory && data.timeGuardHistory.length > 0);
+
+    setHasLocalData(hasData);
+
+    if (hasData) {
+      setShowSyncModal(true);
+    }
   };
 
   // ✅ Workspace Handlers
   const handleSaveWorkspace = async () => {
-    if (!workspaceName.trim()) { alert('Please enter a workspace name'); return; }
-    await handleAction(async () => {
-      const res = await sendMessage({ action: 'saveWorkspace', name: workspaceName, mode: workspaceFilter });
-      if (res.success) { setIsWorkspaceModalOpen(false); setWorkspaceName(''); }
-    });
+    if (!workspaceName.trim()) {
+      alert('Please enter a workspace name');
+      return;
+    }
+
+    console.log('[Workspace] Starting save process...');
+    console.log('[Workspace] Name:', workspaceName);
+    console.log('[Workspace] Filter:', workspaceFilter);
+
+    setIsProcessing(true);
+    setError('');
+
+    try {
+      // Step 1: Send message to background to save workspace
+      console.log('[Workspace] Sending message to background...');
+      const res = await sendMessage({
+        action: 'saveWorkspace',
+        name: workspaceName,
+        mode: workspaceFilter
+      });
+
+      console.log('[Workspace] Background response:', res);
+
+      if (res.success) {
+        // Step 2: Get workspaces from local storage
+        console.log('[Workspace] Reading from local storage...');
+        const { workspaces: localWorkspaces } = await chrome.storage.local.get('workspaces');
+        console.log('[Workspace] Local workspaces:', localWorkspaces?.length || 0);
+
+        // Step 3: Save to Supabase if authenticated
+        const isAuth = await StorageService.isAuthenticated();
+        console.log('[Workspace] Is authenticated:', isAuth);
+
+        if (isAuth && localWorkspaces) {
+          console.log('[Workspace] Saving to Supabase...');
+          await StorageService.saveWorkspaces(localWorkspaces);
+          console.log('[Workspace] Saved to Supabase successfully');
+        }
+
+        // Step 4: Reload workspaces
+        console.log('[Workspace] Reloading workspaces...');
+        await loadWorkspaces();
+        console.log('[Workspace] Reload complete');
+
+        // Step 5: Close modal and clear
+        setIsWorkspaceModalOpen(false);
+        setWorkspaceName('');
+        // alert('Workspace saved successfully!');
+        // Show subtle success feedback
+        const successToast = document.createElement('div');
+        successToast.textContent = '✅ Workspace saved!';
+        successToast.style.cssText = `
+          position: fixed;
+          bottom: 20px;
+          right: 20px;
+          background: #10b981;
+          color: white;
+          padding: 12px 20px;
+          border-radius: 8px;
+          font-size: 13px;
+          font-weight: 500;
+          z-index: 9999;
+          animation: slideIn 0.3s ease-out;
+        `;
+        document.body.appendChild(successToast);
+        setTimeout(() => successToast.remove(), 2000);
+      } else {
+        console.error('[Workspace] Save failed:', res.error);
+        throw new Error(res.error || 'Failed to save workspace');
+      }
+    } catch (err) {
+      console.error('[Workspace] Error:', err);
+      setError('Failed to save workspace: ' + err.message);
+      alert('Error: ' + err.message);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleRestoreWorkspace = async (id) => {
@@ -1688,7 +1840,16 @@ function App() {
 
   const handleDeleteWorkspace = async (id) => {
     if (!confirm('Delete this workspace?')) return;
+
+    // Delete from local first
     await sendMessage({ action: 'deleteWorkspace', id });
+
+    // Then sync to Supabase if authenticated
+    const { workspaces: localWorkspaces } = await chrome.storage.local.get('workspaces');
+    await StorageService.saveWorkspaces(localWorkspaces || []);
+
+    // Reload
+    await loadWorkspaces();
   };
 
   const renderTabContent = () => {
@@ -1804,11 +1965,44 @@ function App() {
 
   return (
     <div className="popup-container">
-      <div className="header" style={{ paddingBottom: currentTab === 'home' ? 16 : 0 }}>
+      <div className="header" style={{ paddingBottom: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <h1>🌲 Tab-Van</h1>
         </div>
         <div className="user-info">
+          {/* ✅ SYNC BUTTON - Add this block */}
+          {!user.is_guest && hasLocalData && (
+            <button
+              onClick={() => setShowSyncModal(true)}
+              style={{
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                border: 'none',
+                padding: '6px 12px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                boxShadow: '0 2px 8px rgba(102, 126, 234, 0.3)',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.transform = 'translateY(-1px)';
+                e.target.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.4)';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.transform = 'translateY(0)';
+                e.target.style.boxShadow = '0 2px 8px rgba(102, 126, 234, 0.3)';
+              }}
+              title="Sync local data to cloud"
+            >
+              <Cloud size={12} />
+              Sync
+            </button>
+          )}
           <span style={{ fontSize: '11px', opacity: 0.8, marginRight: '8px' }}>
             {user.is_guest ? 'Guest Mode' : user.email?.split('@')[0]}
           </span>
@@ -1829,6 +2023,189 @@ function App() {
       </div>
 
       {renderTabContent()}
+
+      {showSyncModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px'
+          }}
+          onClick={() => setShowSyncModal(false)}
+        >
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '16px',
+              width: '100%',
+              maxWidth: '450px',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+              animation: 'slideIn 0.3s ease-out'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{
+              background: syncStatus === 'success' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' :
+                syncStatus === 'error' ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' :
+                  'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              padding: '24px',
+              borderRadius: '16px 16px 0 0',
+              textAlign: 'center',
+              color: 'white'
+            }}>
+              {syncStatus === 'success' ? (
+                <CheckCircle size={48} strokeWidth={2} style={{ margin: '0 auto 12px' }} />
+              ) : syncStatus === 'error' ? (
+                <AlertCircle size={48} strokeWidth={2} style={{ margin: '0 auto 12px' }} />
+              ) : (
+                <Cloud size={48} strokeWidth={2} style={{ margin: '0 auto 12px' }} />
+              )}
+              <h3 style={{ margin: 0, fontSize: '20px', fontWeight: '700' }}>
+                {syncStatus === 'success' ? 'Sync Complete!' :
+                  syncStatus === 'error' ? 'Sync Failed' :
+                    'Sync Your Data'}
+              </h3>
+            </div>
+
+            <div style={{ padding: '24px' }}>
+              {syncStatus === 'idle' && (
+                <>
+                  <div style={{
+                    background: '#f8fafc',
+                    border: '2px solid #e2e8f0',
+                    borderRadius: '10px',
+                    padding: '16px',
+                    marginBottom: '20px'
+                  }}>
+                    <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '700', color: '#1e293b' }}>
+                      What will be synced?
+                    </h4>
+                    <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#64748b', lineHeight: '1.8' }}>
+                      <li>📝 All your notes ({notes.length} notes)</li>
+                      <li>📁 All workspaces ({workspaces.length} workspaces)</li>
+                      <li>⏱ Time guard history</li>
+                    </ul>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      onClick={() => setShowSyncModal(false)}
+                      style={{
+                        flex: 1,
+                        padding: '12px',
+                        background: '#f1f5f9',
+                        color: '#64748b',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontWeight: '600',
+                        fontSize: '14px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Later
+                    </button>
+                    <button
+                      onClick={handleSyncToCloud}
+                      style={{
+                        flex: 1,
+                        padding: '12px',
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontWeight: '600',
+                        fontSize: '14px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px'
+                      }}
+                    >
+                      <Cloud size={18} />
+                      Sync Now
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {syncStatus === 'syncing' && (
+                <div style={{ textAlign: 'center', padding: '20px' }}>
+                  <Loader2 className="animate-spin" size={40} color="#667eea" style={{ margin: '0 auto 16px' }} />
+                  <p style={{ margin: 0, fontSize: '14px', color: '#64748b' }}>Syncing your data to cloud...</p>
+                </div>
+              )}
+
+              {syncStatus === 'success' && (
+                <button
+                  onClick={() => setShowSyncModal(false)}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    background: '#10b981',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: '600',
+                    fontSize: '14px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Done
+                </button>
+              )}
+
+              {syncStatus === 'error' && (
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    onClick={() => {
+                      setSyncStatus('idle');
+                      setSyncMessage('');
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '12px',
+                      background: '#f1f5f9',
+                      color: '#64748b',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontWeight: '600',
+                      fontSize: '14px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Try Again
+                  </button>
+                  <button
+                    onClick={() => setShowSyncModal(false)}
+                    style={{
+                      flex: 1,
+                      padding: '12px',
+                      background: '#667eea',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontWeight: '600',
+                      fontSize: '14px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Skip
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
