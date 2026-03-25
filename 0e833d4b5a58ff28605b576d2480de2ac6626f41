@@ -1,0 +1,29 @@
+manifest.json
+  e59ad2ee77620214 5
+src/App.jsx
+  e59ad2ee77620214 1025,1196,1254-1256,1265,1267-1269,1272-1276
+src/background/workspaceTools.js
+  e59ad2ee77620214 1-2,6-49,79-94,123-125,144-158,160,179,183,186-187,191,194-195,198,200,216,221-353
+src/background/index.js
+  e59ad2ee77620214 3-4,9-12,14-15,35-36,42,46,54-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "0e833d4b5a58ff28605b576d2480de2ac6626f41",
+  "prompts": {
+    "e59ad2ee77620214": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "af53bc66-075b-4c84-a109-0fe1fe1397c2",
+        "model": "default"
+      },
+      "human_author": "Maninder Singh",
+      "messages": [],
+      "total_additions": 339,
+      "total_deletions": 454,
+      "accepted_lines": 257,
+      "overriden_lines": 41
+    }
+  }
+}
