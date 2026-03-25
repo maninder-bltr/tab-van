@@ -391,15 +391,15 @@ SOFTWARE.
 
 **Having trouble?** We're here to help!
 
-- 📧 **Email**: support@tabvan.com *(replace with your email)*
-- 💬 **GitHub Discussions**: [Ask questions, share ideas](https://github.com/yourusername/tab-van/discussions)
-- 🐛 **Bug Reports**: [Open an issue](https://github.com/yourusername/tab-van/issues)
-- 📖 **Wiki**: [User guides & FAQs](https://github.com/yourusername/tab-van/wiki)
+- 📧 **Email**: maninder.bltr@gmail.com
+- 💬 **GitHub Discussions**: [Ask questions, share ideas](https://github.com/maninder-bltr/tab-van/discussions)
+- 🐛 **Bug Reports**: [Open an issue](https://github.com/maninder-bltr/tab-van/issues)
+- 📖 **Wiki**: [User guides & FAQs](https://github.com/maninder-bltr/tab-van/wiki)
 
 **Love Tab-Van?**
 - ⭐ Star us on GitHub
 - 📝 Leave a review on the [Chrome Web Store](https://chrome.google.com/webstore)
-- 🐦 Follow updates: `@TabVanApp` *(optional)*
+- 🐦 Follow updates: `[@TabVanApp`](https://www.linkedin.com/in/maninder-singh-uk/)*
 - 💙 Share with a friend who needs better browser organization
 
 ---
